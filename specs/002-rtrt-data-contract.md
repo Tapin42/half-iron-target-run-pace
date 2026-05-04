@@ -1,5 +1,7 @@
 # RTRT Data Contract
 
+> Current state: done
+
 ## Auth and Transport
 
 - All RTRT requests are server-side HTTP `POST` requests.
@@ -74,3 +76,10 @@
 - Optional:
   - `ATHLETE_CONFIG_FILE` path for local JSON persistence
 - No hardcoded secrets in repository.
+
+## Decomposed Tasks
+
+- `tasks/done/007-rtrt-client-auth-and-baseline-params.md`
+- `tasks/done/008-rtrt-athlete-search-and-fallback-listing.md`
+- `tasks/done/009-rtrt-athlete-splits-and-normalization.md`
+- `tasks/done/010-rtrt-error-handling-and-security-guards.md`

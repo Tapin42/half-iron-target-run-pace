@@ -1,49 +1,52 @@
 {% extends "base.html" %}
 {% block content %}
 <section class="panel">
-  <h2>Configure Athlete Target</h2>
-  {% if error %}
-    <p class="error">{{ error }}</p>
+  <div class="panel-heading">
+    <h2>Athlete List</h2>
+    <a class="button-link" href="{{ url_for('config_page') }}">Configure Athlete</a>
+  </div>
+  {% if sim_elapsed is not none %}
+    <p class="meta">Simulated elapsed: {{ "%02d:%02d:%02d"|format(sim_elapsed // 3600, (sim_elapsed % 3600) // 60, sim_elapsed % 60) }}</p>
   {% endif %}
-  <form id="config-form" method="post" action="{{ url_for('save_config') }}">
-    <label for="race_slug">Race</label>
-    <select id="race_slug" name="race_slug">
-      {% for race in race_options %}
-        <option value="{{ race.slug }}" {% if race.slug == default_race_slug %}selected{% endif %}>{{ race.display_name }}</option>
-      {% endfor %}
-    </select>
-
-    <label for="search_term">Search Athlete (name or bib)</label>
-    <div class="row">
-      <input id="search_term" type="text" placeholder="e.g. Jane or 1432">
-      <button id="search-btn" type="button">Search RTRT</button>
-    </div>
-
-    <div id="search-feedback" class="muted"></div>
-    <ul id="search-results"></ul>
-
-    <input id="entry_id" type="hidden" name="entry_id">
-    <input id="name" type="hidden" name="name">
-    <input id="bib" type="hidden" name="bib">
-    <input id="division" type="hidden" name="division">
-
-    <p class="muted">Selected athlete: <span id="selected-athlete">None</span></p>
-
-    <label for="target_finish_time">Target Finish Time (HH:MM:SS)</label>
-    <input id="target_finish_time" name="target_finish_time" placeholder="05:30:00" required>
-
-    <button type="submit">Save Athlete Target</button>
-  </form>
-</section>
-
-<section class="panel">
-  <h2>Configured Athletes</h2>
+  <p class="meta">
+    Simulation checkpoints:
+    {% for checkpoint in sim_checkpoints %}
+      <a href="{{ url_for('home', sim_elapsed=checkpoint.seconds) }}">{{ checkpoint.label }}</a>{% if not loop.last %} | {% endif %}
+    {% endfor %}
+    {% if sim_elapsed is not none %} | <a href="{{ url_for('home') }}">Live</a>{% endif %}
+  </p>
   {% if athletes %}
     <ul class="athlete-list">
       {% for athlete in athletes %}
+        {% set is_active_row = athlete.id == active_athlete_id %}
         <li>
-          <a href="{{ url_for('athlete_detail', athlete_id=athlete.id) }}">{{ athlete.name }}</a>
+          <a href="{{ url_for('athlete_detail', athlete_id=athlete.id, sim_elapsed=sim_elapsed) if sim_elapsed is not none else url_for('athlete_detail', athlete_id=athlete.id) }}">{{ athlete.name }}</a>
           <span class="meta">Bib {{ athlete.bib or "?" }} | target {{ athlete.target_finish_time }}</span>
+          {% if athlete.latest_split %}
+            <span class="meta"> | Latest split {{ athlete.latest_split.name }} at {{ athlete.latest_split.time }}</span>
+          {% else %}
+            <span class="meta"> | Latest split unavailable</span>
+          {% endif %}
+          {% if is_active_row and active_mode == "edit" %}
+            <form method="post" action="{{ url_for('update_athlete_target', athlete_id=athlete.id) }}" class="row-inline-form">
+              <label for="target_finish_time_{{ athlete.id }}">Update target finish time</label>
+              <input id="target_finish_time_{{ athlete.id }}" name="target_finish_time" value="{{ athlete.target_finish_time }}" required>
+              <button type="submit">Save target</button>
+              <a href="{{ url_for('home', sim_elapsed=sim_elapsed) if sim_elapsed is not none else url_for('home') }}">Cancel</a>
+            </form>
+          {% elif is_active_row and active_mode == "delete" %}
+            <form method="post" action="{{ url_for('delete_athlete', athlete_id=athlete.id) }}" class="row-inline-form">
+              <p class="meta">Delete {{ athlete.name }} from this list?</p>
+              <input type="hidden" name="confirm" value="yes">
+              <button type="submit">Confirm delete</button>
+              <a href="{{ url_for('home', sim_elapsed=sim_elapsed) if sim_elapsed is not none else url_for('home') }}">Cancel</a>
+            </form>
+          {% else %}
+            <div class="row-inline-actions">
+              <a href="{{ url_for('home', mode='edit', athlete_id=athlete.id, sim_elapsed=sim_elapsed) if sim_elapsed is not none else url_for('home', mode='edit', athlete_id=athlete.id) }}">Edit target</a>
+              <a href="{{ url_for('home', mode='delete', athlete_id=athlete.id, sim_elapsed=sim_elapsed) if sim_elapsed is not none else url_for('home', mode='delete', athlete_id=athlete.id) }}">Delete</a>
+            </div>
+          {% endif %}
         </li>
       {% endfor %}
     </ul>
@@ -51,55 +54,4 @@
     <p class="muted">No athletes configured yet.</p>
   {% endif %}
 </section>
-
-<script>
-const searchBtn = document.getElementById("search-btn");
-const resultsList = document.getElementById("search-results");
-const feedback = document.getElementById("search-feedback");
-const selectedAthlete = document.getElementById("selected-athlete");
-
-function setSelected(row) {
-  document.getElementById("entry_id").value = row.entry_id;
-  document.getElementById("name").value = row.name;
-  document.getElementById("bib").value = row.bib || "";
-  document.getElementById("division").value = row.division || "";
-  selectedAthlete.textContent = `${row.name} (bib ${row.bib || "?"})`;
-}
-
-searchBtn.addEventListener("click", async () => {
-  const raceSlug = document.getElementById("race_slug").value;
-  const q = document.getElementById("search_term").value.trim();
-  if (q.length < 2) {
-    feedback.textContent = "Enter at least 2 characters.";
-    return;
-  }
-
-  feedback.textContent = "Searching...";
-  resultsList.innerHTML = "";
-
-  const response = await fetch(`/api/search?race_slug=${encodeURIComponent(raceSlug)}&q=${encodeURIComponent(q)}`);
-  const payload = await response.json();
-  if (!response.ok) {
-    feedback.textContent = payload.error || "Search failed.";
-    return;
-  }
-
-  const results = payload.results || [];
-  if (!results.length) {
-    feedback.textContent = "No athletes found.";
-    return;
-  }
-
-  feedback.textContent = `Found ${results.length} athlete(s). Click one to select.`;
-  for (const row of results) {
-    const li = document.createElement("li");
-    const button = document.createElement("button");
-    button.type = "button";
-    button.textContent = `${row.name} (bib ${row.bib || "?"}) ${row.division ? "- " + row.division : ""}`;
-    button.addEventListener("click", () => setSelected(row));
-    li.appendChild(button);
-    resultsList.appendChild(li);
-  }
-});
-</script>
 {% endblock %}

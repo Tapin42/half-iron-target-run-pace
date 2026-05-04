@@ -1,5 +1,7 @@
 # Product Scope (v1)
 
+> Current state: done
+
 ## Objective
 
 Provide a simple supporter-facing dashboard that tracks selected athletes in Ironman 70.3 Rockford and translates current split state into actionable run-leg pacing guidance against a target finish time.

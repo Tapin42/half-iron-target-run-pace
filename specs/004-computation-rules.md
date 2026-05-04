@@ -1,5 +1,7 @@
 # Computation Rules
 
+> Current state: done
+
 ## Time Parsing
 
 - Input format: `HH:MM:SS`
@@ -63,3 +65,10 @@ Interpretation:
 - If no T2 split: show latest split only; no target run math
 - If no run split distance/time: show target run and required pace only
 - If parsing fails: suppress derived math and show data warning
+
+## Decomposed Tasks
+
+- `tasks/done/015-time-parsing-and-formatting-rules.md`
+- `tasks/done/016-t2-driven-target-run-and-required-pace-math.md`
+- `tasks/done/017-run-progress-delta-and-split-distance-mapping.md`
+- `tasks/done/018-missing-data-and-unachievable-target-handling.md`

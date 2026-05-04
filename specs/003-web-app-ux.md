@@ -1,5 +1,7 @@
 # Web App UX (v1)
 
+> Current state: done
+
 ## Layout
 
 - Single-page feel with two primary areas:
@@ -48,3 +50,10 @@ Sections:
 - Keep numeric outputs large and explicit
 - Favor plain language labels over abbreviations
 - Display both `HH:MM:SS` and pace when relevant
+
+## Decomposed Tasks
+
+- `tasks/done/011-web-ux-config-panel-and-search-interactions.md`
+- `tasks/done/012-web-ux-config-validation-and-athlete-list.md`
+- `tasks/done/013-web-ux-athlete-detail-sections-and-math-presentation.md`
+- `tasks/done/014-web-ux-refresh-action-and-whiteboard-output-polish.md`

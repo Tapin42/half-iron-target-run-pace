@@ -7,11 +7,18 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
   </head>
   <body>
-    <header>
-      <h1>Half-Iron Target Run Pace</h1>
-      <p>Rockford-first, race-extensible pacing tracker.</p>
-    </header>
     <main>
+      {% with flashed_messages = get_flashed_messages(with_categories=true) %}
+        {% if flashed_messages %}
+          <section class="panel" aria-label="Status messages">
+            <ul class="flash-list">
+              {% for category, message in flashed_messages %}
+                <li class="flash flash-{{ category }}">{{ message }}</li>
+              {% endfor %}
+            </ul>
+          </section>
+        {% endif %}
+      {% endwith %}
       {% block content %}{% endblock %}
     </main>
   </body>

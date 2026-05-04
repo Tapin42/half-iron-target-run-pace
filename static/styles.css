@@ -5,12 +5,6 @@ body {
   margin: 0;
 }
 
-header {
-  background: #16324f;
-  color: #fff;
-  padding: 1rem 1.25rem;
-}
-
 main {
   max-width: 900px;
   margin: 1rem auto;
@@ -23,6 +17,18 @@ main {
   padding: 1rem;
   margin-bottom: 1rem;
   box-shadow: 0 2px 8px rgba(16, 24, 40, 0.08);
+}
+
+.panel-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.panel-heading h2 {
+  margin: 0;
 }
 
 label {
@@ -46,6 +52,7 @@ select {
 
 button {
   margin-top: 0.75rem;
+  cursor: pointer;
 }
 
 .row {
@@ -84,4 +91,30 @@ button {
   margin-top: 0.3rem;
   width: 100%;
   text-align: left;
+}
+
+.button-link {
+  display: inline-block;
+  padding: 0.45rem 0.75rem;
+  border-radius: 8px;
+  background: #16324f;
+  color: #fff;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.button-link-secondary {
+  background: #e6ecf5;
+  color: #1d2735;
+}
+
+@media (max-width: 640px) {
+  .panel-heading {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .row {
+    flex-direction: column;
+  }
 }

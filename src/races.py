@@ -19,4 +19,14 @@ def load_race_configs() -> dict[str, RaceConfig]:
         search_category=os.getenv("RTRT_SEARCH_CATEGORY"),
         finish_split=os.getenv("RTRT_FINISH_SPLIT", "FINISH"),
     )
-    return {rockford.slug: rockford}
+    venice = RaceConfig(
+        slug="venice-70.3",
+        display_name="Ironman 70.3 Venice",
+        event_key="IRM-VENICE703-2026",
+        search_category=os.getenv("RTRT_VENICE_SEARCH_CATEGORY"),
+        finish_split=os.getenv("RTRT_VENICE_FINISH_SPLIT", "FINISH"),
+    )
+    return {
+        rockford.slug: rockford,
+        venice.slug: venice,
+    }
