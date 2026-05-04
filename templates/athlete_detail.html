@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+  <p><a href="{{ url_for('home') }}">← Back to athlete list</a></p>
+  <h2>{{ athlete.name }}</h2>
+  <p class="meta">Race: {{ race.display_name }} | Bib {{ athlete.bib or "?" }} | Target finish {{ athlete.target_finish_time }}</p>
+
+  {% if detail_error %}
+    <p class="error">{{ detail_error }}</p>
+  {% endif %}
+
+  {% if latest_split %}
+    <h3>Latest Split</h3>
+    <p>{{ latest_split.name }} at {{ latest_split.time }}</p>
+  {% else %}
+    <p class="muted">No split data available yet.</p>
+  {% endif %}
+
+  {% if t2_split and metrics %}
+    <h3>Required HM to Hit Target</h3>
+    <p>Target run time (target finish - T2): <strong>{{ metrics.target_run_time }}</strong></p>
+    <p>Required pace: <strong>{{ metrics.required_pace }}</strong></p>
+  {% elif t2_split and not metrics %}
+    <p class="error">T2 found, but target finish is already behind the T2 cumulative time.</p>
+  {% else %}
+    <p class="muted">T2 not reached yet, so required run pace is unavailable.</p>
+  {% endif %}
+
+  {% if progress %}
+    <h3>Run Progress vs Goal Pace</h3>
+    <p>Distance marker: {{ "%.2f"|format(progress.distance_miles) }} mi</p>
+    <p>Actual run elapsed: {{ progress.actual_run_elapsed }}</p>
+    {% if progress.state == "ahead" %}
+      <p class="good">Ahead of goal pace by {{ progress.delta_display }}</p>
+    {% elif progress.state == "behind" %}
+      <p class="bad">Behind goal pace by {{ progress.delta_display }}</p>
+    {% else %}
+      <p>On goal pace.</p>
+    {% endif %}
+  {% else %}
+    <p class="muted">No run split distance available yet for ahead/behind status.</p>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <h3>Known Splits</h3>
+  {% if splits %}
+    <ul class="split-list">
+      {% for split in splits %}
+        <li>{{ split.name }} - {{ split.time }}</li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="muted">No split list available.</p>
+  {% endif %}
+</section>
+{% endblock %}
