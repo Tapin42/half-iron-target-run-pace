@@ -1,3 +1,5 @@
+import pytest
+
 from src.calculations import (
     compute_required_run_metrics,
     compute_run_progress_status,
@@ -72,6 +74,15 @@ def test_format_pace():
 def test_parse_run_distance_miles_and_km():
     assert parse_run_distance("RUN 5 MI") == 5.0
     assert parse_run_distance("RUN 10K") == 6.21371
+
+
+def test_parse_run_distance_supports_comma_decimal_km():
+    assert parse_run_distance("Run 2,6 km") == pytest.approx(1.6155646, rel=1e-6)
+    assert parse_run_distance("Run 6,1 km") == pytest.approx(3.7903629999999996, rel=1e-6)
+
+
+def test_parse_run_distance_supports_meter_checkpoints():
+    assert parse_run_distance("Run 400 m") == pytest.approx(0.2485484, rel=1e-6)
 
 
 def test_find_best_run_split_uses_farthest_recognized_distance():

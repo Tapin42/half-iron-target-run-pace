@@ -276,14 +276,33 @@ def athlete_detail(athlete_id: str):
 
     latest_split = find_latest_split(splits)
     t2_split = find_t2_split(splits)
+    finish_candidates = [split for split in splits if "FINISH" in split["name"].upper()]
+    finish_split = max(finish_candidates, key=lambda split: split["seconds"]) if finish_candidates else None
     run_split_parse_warning = _has_unparsable_run_split(
         splits,
         t2_split["seconds"] if t2_split else None,
     )
 
+    athlete_state = "pre_run"
+    if finish_split:
+        athlete_state = "finished"
+    elif t2_split:
+        athlete_state = "on_run"
+
+    finish_summary = None
+    target_total_seconds = parse_hhmmss(athlete["target_finish_time"])
+    if finish_split and target_total_seconds is not None:
+        delta_seconds = finish_split["seconds"] - target_total_seconds
+        finish_summary = {
+            "result": "hit" if delta_seconds <= 0 else "missed",
+            "delta_display": format_seconds(abs(delta_seconds)),
+            "finish_time": finish_split["time"],
+            "target_time": athlete["target_finish_time"],
+        }
+
     metrics = None
     progress = None
-    if t2_split:
+    if t2_split and athlete_state == "on_run":
         metrics = compute_required_run_metrics(athlete["target_finish_time"], t2_split["time"])
         if metrics:
             best_run = find_best_run_split(splits, t2_split["seconds"])
@@ -316,6 +335,8 @@ def athlete_detail(athlete_id: str):
         detail_error=detail_error,
         sim_elapsed=sim_elapsed,
         sim_checkpoints=_simulation_checkpoints(),
+        athlete_state=athlete_state,
+        finish_summary=finish_summary,
     )
 
 

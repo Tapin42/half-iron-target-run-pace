@@ -146,13 +146,19 @@ class RtrtService:
 
 def parse_run_distance(split_name: str) -> float | None:
     text = split_name.upper()
-    mile_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:MI|MILE)", text)
+    normalized_text = re.sub(r"(?<=\d),(?=\d)", ".", text)
+
+    mile_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:MI|MILE)\b", normalized_text)
     if mile_match:
         return float(mile_match.group(1))
 
-    km_match = re.search(r"(\d+(?:\.\d+)?)\s*K", text)
+    km_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:KM|K)\b", normalized_text)
     if km_match:
         return float(km_match.group(1)) * 0.621371
+
+    meter_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:M|METER|METERS)\b", normalized_text)
+    if meter_match:
+        return float(meter_match.group(1)) / 1609.344
 
     return None
 

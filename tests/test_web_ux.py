@@ -368,10 +368,12 @@ def test_athlete_detail_shows_required_hm_completion_time_and_signed_delta(monke
 
     assert response.status_code == 200
     body = response.get_data(as_text=True)
-    assert "Required half-marathon completion time" in body
-    assert "Required pace" in body
-    assert "Signed delta vs goal pace:" in body
-    assert "+00:04:48" in body
+    assert "is on the run!" in body
+    assert "Run Goal:" in body
+    assert "Pace:" in body
+    assert "Based on a T2 time of" in body
+    assert "And a goal finish of" in body
+    assert "/mi /mi" not in body
 
 
 def test_athlete_detail_respects_simulated_elapsed_before_t2(monkeypatch, tmp_path):
@@ -399,7 +401,7 @@ def test_athlete_detail_respects_simulated_elapsed_before_t2(monkeypatch, tmp_pa
 
     assert response.status_code == 200
     body = response.get_data(as_text=True)
-    assert "T2 not reached yet, so required run pace is unavailable." in body
+    assert "is not yet running." in body
     assert "Simulated elapsed: 02:46:40" in body
 
 
@@ -451,8 +453,38 @@ def test_athlete_detail_simulated_elapsed_after_one_finish_keeps_on_course_athle
 
     assert fast_detail_response.status_code == 200
     fast_body = fast_detail_response.get_data(as_text=True)
-    assert "Latest Split" in fast_body
+    assert "Latest update:" in fast_body
     assert "FINISH at 04:30:10" in fast_body
+    assert "did it!" in fast_body
+
+
+def test_athlete_detail_finished_over_target_shows_miss_message(monkeypatch, tmp_path):
+    _set_temp_store(monkeypatch, tmp_path)
+    row = app_module.store.add(
+        race_slug="rockford-70.3",
+        entry_id="entry-3",
+        bib="303",
+        name="Late Runner",
+        division="M40-44",
+        target_finish_time="05:00:00",
+    )
+    monkeypatch.setattr(
+        app_module.rtrt_service,
+        "fetch_splits",
+        lambda _race, _entry_id: [
+            {"name": "T2", "time": "03:15:00", "seconds": 11700},
+            {"name": "RUN 13.1 MI", "time": "05:10:00", "seconds": 18600, "distance_miles": 13.1},
+            {"name": "FINISH", "time": "05:10:05", "seconds": 18605},
+        ],
+    )
+    test_client = app_module.app.test_client()
+
+    response = test_client.get(f"/athlete/{row['id']}")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert "didn't quite make it." in body
+    assert "Missed target by" in body
 
 
 def test_athlete_detail_has_manual_refresh_action(monkeypatch, tmp_path):

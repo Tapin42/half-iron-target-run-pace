@@ -1,10 +1,80 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="panel">
-  <p><a href="{{ url_for('home', sim_elapsed=sim_elapsed) if sim_elapsed is not none else url_for('home') }}">← Back to athlete list</a></p>
-  <p><a href="{{ url_for('athlete_detail', athlete_id=athlete.id, sim_elapsed=sim_elapsed) if sim_elapsed is not none else url_for('athlete_detail', athlete_id=athlete.id, refresh=1) }}">Refresh split data</a></p>
-  <h2>{{ athlete.name }}</h2>
-  <p class="meta">Race: {{ race.display_name }} | Bib {{ athlete.bib or "?" }} | Target finish {{ athlete.target_finish_time }}</p>
+<section class="panel athlete-cheer-card">
+  <p class="athlete-actions">
+    <a href="{{ url_for('home', sim_elapsed=sim_elapsed) if sim_elapsed is not none else url_for('home') }}">← Back to athlete list</a>
+    <span aria-hidden="true">·</span>
+    <a href="{{ url_for('athlete_detail', athlete_id=athlete.id, sim_elapsed=sim_elapsed) if sim_elapsed is not none else url_for('athlete_detail', athlete_id=athlete.id, refresh=1) }}">Refresh split data</a>
+  </p>
+
+  {% if athlete_state == "finished" %}
+    {% if finish_summary and finish_summary.result == "hit" %}
+      <h2 class="athlete-headline"><strong>{{ athlete.name }}</strong> did it!</h2>
+    {% else %}
+      <h2 class="athlete-headline"><strong>{{ athlete.name }}</strong> didn't quite make it.</h2>
+    {% endif %}
+  {% elif athlete_state == "on_run" %}
+    <h2 class="athlete-headline"><strong>{{ athlete.name }}</strong> is on the run!</h2>
+  {% else %}
+    <h2 class="athlete-headline"><strong>{{ athlete.name }}</strong> is not yet running.</h2>
+  {% endif %}
+  <p class="athlete-subhead">Race: {{ race.display_name }} | Bib {{ athlete.bib or "?" }}</p>
+
+  {% if detail_error %}
+    <p class="error">{{ detail_error }}</p>
+  {% endif %}
+
+  {% if latest_split %}
+    <p class="athlete-latest">Latest update: <strong>{{ latest_split.name }} at {{ latest_split.time }}</strong></p>
+  {% else %}
+    <p class="muted athlete-latest">No split data available yet.</p>
+  {% endif %}
+
+  {% if athlete_state == "finished" and finish_summary %}
+    <p class="athlete-metric-row">
+      <span class="athlete-metric-label">Finish:</span>
+      <span class="athlete-metric-value">{{ finish_summary.finish_time }}</span>
+    </p>
+    <p class="athlete-metric-row">
+      <span class="athlete-metric-label">Target:</span>
+      <span class="athlete-metric-value">{{ finish_summary.target_time }}</span>
+    </p>
+    {% if finish_summary.result == "hit" %}
+      <p class="good athlete-context">Beat target by <strong>{{ finish_summary.delta_display }}</strong></p>
+    {% else %}
+      <p class="bad athlete-context">Missed target by <strong>{{ finish_summary.delta_display }}</strong></p>
+    {% endif %}
+  {% elif t2_split and metrics %}
+    <p class="athlete-metric-row">
+      <span class="athlete-metric-label">Run Goal:</span>
+      <span class="athlete-metric-value">{{ metrics.target_run_time }}</span>
+    </p>
+    <p class="athlete-metric-row">
+      <span class="athlete-metric-label">Pace:</span>
+      <span class="athlete-metric-value">{{ metrics.required_pace }}</span>
+    </p>
+    <p class="athlete-context">
+      Based on a T2 time of <strong>{{ t2_split.time }}</strong><br>
+      And a goal finish of <strong>{{ athlete.target_finish_time }}</strong>
+    </p>
+  {% elif athlete_state == "on_run" and t2_split and not metrics %}
+    <p class="error">T2 found, but target finish is already behind the T2 cumulative time.</p>
+  {% endif %}
+
+  {% if athlete_state == "on_run" and progress %}
+    {% if progress.state == "ahead" %}
+      <p class="good">At mile {{ "%.2f"|format(progress.distance_miles) }}, {{ progress.delta_display }} ahead of goal pace.</p>
+    {% elif progress.state == "behind" %}
+      <p class="bad">At mile {{ "%.2f"|format(progress.distance_miles) }}, {{ progress.delta_display }} behind goal pace.</p>
+    {% else %}
+      <p>At mile {{ "%.2f"|format(progress.distance_miles) }}, on goal pace.</p>
+    {% endif %}
+  {% endif %}
+
+  {% if run_split_parse_warning %}
+    <p class="error">Run split data could not be fully parsed.</p>
+  {% endif %}
+
   {% if sim_elapsed is not none %}
     <p class="meta">Simulated elapsed: {{ "%02d:%02d:%02d"|format(sim_elapsed // 3600, (sim_elapsed % 3600) // 60, sim_elapsed % 60) }}</p>
   {% endif %}
@@ -15,60 +85,5 @@
     {% endfor %}
     {% if sim_elapsed is not none %} | <a href="{{ url_for('athlete_detail', athlete_id=athlete.id) }}">Live</a>{% endif %}
   </p>
-
-  {% if detail_error %}
-    <p class="error">{{ detail_error }}</p>
-  {% endif %}
-
-  {% if latest_split %}
-    <h3>Latest Split</h3>
-    <p>{{ latest_split.name }} at {{ latest_split.time }}</p>
-  {% else %}
-    <p class="muted">No split data available yet.</p>
-  {% endif %}
-
-  {% if t2_split and metrics %}
-    <h3>Required HM to Hit Target</h3>
-    <p>Target run time (target finish - T2): <strong>{{ metrics.target_run_time }}</strong></p>
-    <p>Required half-marathon completion time: <strong>{{ metrics.target_run_time }}</strong></p>
-    <p>Required pace: <strong>{{ metrics.required_pace }}</strong></p>
-  {% elif t2_split and not metrics %}
-    <p class="error">T2 found, but target finish is already behind the T2 cumulative time.</p>
-  {% else %}
-    <p class="muted">T2 not reached yet, so required run pace is unavailable.</p>
-  {% endif %}
-
-  {% if progress %}
-    <h3>Run Progress vs Goal Pace</h3>
-    <p>Distance marker: {{ "%.2f"|format(progress.distance_miles) }} mi</p>
-    <p>Actual run elapsed: {{ progress.actual_run_elapsed }}</p>
-    <p>Signed delta vs goal pace: <strong>{{ progress.delta_signed }}</strong></p>
-    {% if progress.state == "ahead" %}
-      <p class="good">Ahead of goal pace by {{ progress.delta_display }}</p>
-    {% elif progress.state == "behind" %}
-      <p class="bad">Behind goal pace by {{ progress.delta_display }}</p>
-    {% else %}
-      <p>On goal pace.</p>
-    {% endif %}
-  {% else %}
-    <p class="muted">No run split distance available yet for ahead/behind status.</p>
-  {% endif %}
-
-  {% if run_split_parse_warning %}
-    <p class="error">Run split data could not be fully parsed.</p>
-  {% endif %}
-</section>
-
-<section class="panel">
-  <h3>Known Splits</h3>
-  {% if splits %}
-    <ul class="split-list">
-      {% for split in splits %}
-        <li>{{ split.name }} - {{ split.time }}</li>
-      {% endfor %}
-    </ul>
-  {% else %}
-    <p class="muted">No split list available.</p>
-  {% endif %}
 </section>
 {% endblock %}
