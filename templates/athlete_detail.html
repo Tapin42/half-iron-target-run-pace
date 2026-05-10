@@ -79,7 +79,7 @@
     {% else %}
       <p class="bad athlete-context">Missed target by <strong>{{ finish_summary.delta_display }}</strong></p>
     {% endif %}
-  {% elif t2_split and metrics %}
+  {% elif run_anchor_split and metrics %}
     <p class="athlete-metric-row athlete-detail-metric-row">
       <span class="athlete-metric-label">Run Goal:</span>
       <span class="athlete-metric-value">{{ metrics.target_run_time }}</span>
@@ -89,11 +89,11 @@
       <span class="athlete-metric-value">{{ metrics.required_pace }}</span>
     </p>
     <p class="athlete-context">
-      Based on a T2 time of <strong>{{ t2_split.time }}</strong><br>
+      Based on a {{ run_anchor_label }} time of <strong>{{ run_anchor_split.time }}</strong><br>
       And a goal finish of <strong>{{ athlete.target_finish_time }}</strong>
     </p>
-  {% elif athlete_state == "on_run" and t2_split and not metrics %}
-    <p class="error">T2 found, but target finish is already behind the T2 cumulative time.</p>
+  {% elif athlete_state == "on_run" and run_anchor_split and not metrics %}
+    <p class="error">{{ run_anchor_label }} found, but target finish is already behind that cumulative time.</p>
   {% endif %}
 
   {% if athlete_state == "on_run" and progress %}

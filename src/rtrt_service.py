@@ -182,3 +182,12 @@ def find_best_run_split(splits: list[dict], t2_seconds: int) -> dict | None:
     if not run_splits:
         return None
     return max(run_splits, key=lambda split: split["distance_miles"])
+
+
+def is_run_start_split(split_name: str) -> bool:
+    normalized = re.sub(r"[^A-Z0-9]+", " ", (split_name or "").upper()).strip()
+    return normalized in {"RUN START", "START RUN"}
+
+
+def find_run_start_split(splits: list[dict]) -> dict | None:
+    return next((split for split in splits if is_run_start_split(split.get("name", ""))), None)

@@ -17,6 +17,19 @@ def test_home_renders_client_storage_mount_and_unknown_notice():
     assert 'src="/static/athletes.js"' in body
 
 
+def test_stylesheet_preserves_vertical_scroll_for_long_home_lists():
+    test_client = app_module.app.test_client()
+
+    response = test_client.get("/static/styles.css")
+
+    assert response.status_code == 200
+    css = response.get_data(as_text=True)
+    assert "overflow-y: auto;" in css
+    assert "touch-action: pan-y;" in css
+    assert "padding-bottom: calc(4rem + env(safe-area-inset-bottom));" in css
+    assert "padding-bottom: calc(1rem + env(safe-area-inset-bottom));" in css
+
+
 def test_config_page_renders_local_storage_wiring_and_race_options():
     test_client = app_module.app.test_client()
 
@@ -105,6 +118,37 @@ def test_athlete_detail_query_page_renders_for_known_identity(monkeypatch):
     assert 'aria-label="Copy athlete URL"' in body
     assert 'class="panel athlete-cheer-card athlete-dashboard-panel"' in body
     assert 'class="athlete-chip-row athlete-detail-chip-row"' in body
+
+
+def test_athlete_detail_uses_run_start_when_t2_missing(monkeypatch):
+    monkeypatch.setattr(
+        app_module.rtrt_service,
+        "fetch_splits",
+        lambda _race, _entry_id: [
+            {"name": "BIKE 80 KM", "time": "02:30:00", "seconds": 9000, "distance_miles": None},
+            {"name": "RUN START", "time": "02:35:28", "seconds": 9328, "distance_miles": None},
+        ],
+    )
+    test_client = app_module.app.test_client()
+
+    response = test_client.get(
+        "/athlete/detail"
+        "?athlete_id=local-athlete-id-1"
+        "&race_slug=da-nang-70.3"
+        "&entry_id=e1"
+        "&name=Rodrigo%20Acevedo"
+        "&bib=3585"
+        "&division=M35-39"
+        "&target_finish_time=04:00:00"
+    )
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert "Rodrigo Acevedo" in body
+    assert "is on the run!" in body
+    assert "Run Goal:" in body
+    assert "Pace:" in body
+    assert "Run split data could not be fully parsed." not in body
 
 
 def test_athlete_detail_page_includes_share_button_and_share_url(monkeypatch):

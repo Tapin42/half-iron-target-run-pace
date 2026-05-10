@@ -15,6 +15,8 @@ from src.rtrt_service import (
     RtrtService,
     find_best_run_split,
     find_latest_split,
+    find_run_start_split,
+    is_run_start_split,
     find_t2_split,
 )
 
@@ -93,6 +95,8 @@ def _has_unparsable_run_split(splits: list[dict], t2_seconds: int | None) -> boo
         name = str(split.get("name", "")).upper()
         seconds = split.get("seconds")
         if t2_seconds is not None and isinstance(seconds, int) and seconds < t2_seconds:
+            continue
+        if is_run_start_split(name):
             continue
         if "RUN" in name and split.get("distance_miles") is None:
             return True
@@ -311,19 +315,22 @@ def athlete_detail_page():
 
     latest_split = find_latest_split(splits)
     t2_split = find_t2_split(splits)
+    run_start_split = find_run_start_split(splits)
     finish_candidates = [
         split for split in splits if _is_race_finish_split(split, race.finish_split)
     ]
     finish_split = max(finish_candidates, key=lambda split: split["seconds"]) if finish_candidates else None
+    run_anchor_split = t2_split or run_start_split
     run_split_parse_warning = _has_unparsable_run_split(
         splits,
-        t2_split["seconds"] if t2_split else None,
+        run_anchor_split["seconds"] if run_anchor_split else None,
     )
+    run_anchor_label = "T2" if t2_split else ("Run Start" if run_start_split else "Run")
 
     athlete_state = "pre_run"
     if finish_split:
         athlete_state = "finished"
-    elif t2_split:
+    elif run_anchor_split:
         athlete_state = "on_run"
 
     finish_summary = None
@@ -339,12 +346,12 @@ def athlete_detail_page():
 
     metrics = None
     progress = None
-    if t2_split and athlete_state == "on_run":
-        metrics = compute_required_run_metrics(athlete["target_finish_time"], t2_split["time"])
+    if run_anchor_split and athlete_state == "on_run":
+        metrics = compute_required_run_metrics(athlete["target_finish_time"], run_anchor_split["time"])
         if metrics:
-            best_run = find_best_run_split(splits, t2_split["seconds"])
+            best_run = find_best_run_split(splits, run_anchor_split["seconds"])
             if best_run:
-                run_elapsed = best_run["seconds"] - t2_split["seconds"]
+                run_elapsed = best_run["seconds"] - run_anchor_split["seconds"]
                 progress = compute_run_progress_status(
                     target_run_seconds=metrics["target_run_seconds"],
                     run_elapsed_seconds=run_elapsed,
@@ -407,6 +414,8 @@ def athlete_detail_page():
         splits=splits,
         latest_split=latest_split,
         t2_split=t2_split,
+        run_anchor_split=run_anchor_split,
+        run_anchor_label=run_anchor_label,
         metrics=metrics,
         progress=progress,
         run_split_parse_warning=run_split_parse_warning,

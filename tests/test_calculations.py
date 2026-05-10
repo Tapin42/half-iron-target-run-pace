@@ -7,7 +7,7 @@ from src.calculations import (
     format_seconds,
     parse_hhmmss,
 )
-from src.rtrt_service import find_best_run_split, parse_run_distance
+from src.rtrt_service import find_best_run_split, find_run_start_split, parse_run_distance
 
 
 def test_parse_hhmmss_valid():
@@ -95,3 +95,16 @@ def test_find_best_run_split_uses_farthest_recognized_distance():
     best = find_best_run_split(splits, t2_seconds=13200)
     assert best is not None
     assert best["name"] == "RUN 5 MI"
+
+
+def test_find_run_start_split_matches_explicit_run_start_labels():
+    splits = [
+        {"name": "T2", "seconds": 13200, "distance_miles": None},
+        {"name": "Run Start", "seconds": 13230, "distance_miles": None},
+        {"name": "RUN 1 MI", "seconds": 13800, "distance_miles": 1.0},
+    ]
+
+    run_start = find_run_start_split(splits)
+
+    assert run_start is not None
+    assert run_start["name"] == "Run Start"
