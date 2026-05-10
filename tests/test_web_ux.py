@@ -28,6 +28,7 @@ def test_stylesheet_preserves_vertical_scroll_for_long_home_lists():
     assert "touch-action: pan-y;" in css
     assert "padding-bottom: calc(4rem + env(safe-area-inset-bottom));" in css
     assert "padding-bottom: calc(1rem + env(safe-area-inset-bottom));" in css
+    assert ".search-results-list button.is-selected" in css
 
 
 def test_config_page_renders_local_storage_wiring_and_race_options():
@@ -42,6 +43,23 @@ def test_config_page_renders_local_storage_wiring_and_race_options():
     assert "Ironman 70.3 Da Nang" in body
     assert 'id="config-form"' in body
     assert "window.AthleteStoreClient.addAthlete" in body
+    assert "Selected athlete" not in body
+    assert "e.g. 5, 5:30, or 05:30:00" in body
+    assert "First result is selected automatically." in body
+    assert "setSelected(results[0], firstButton);" in body
+
+
+def test_athletes_js_supports_flexible_target_finish_time_inputs():
+    test_client = app_module.app.test_client()
+
+    response = test_client.get("/static/athletes.js")
+
+    assert response.status_code == 200
+    script = response.get_data(as_text=True)
+    assert "function normalizeTargetFinishTime(value)" in script
+    assert "throw new Error(\"invalid_target\");" in script
+    assert "const numberOnly = text.match(/^\\d+$/);" in script
+    assert "const normalized = normalizeTargetFinishTime(athlete.target_finish_time);" in script
 
 
 def test_athlete_resolver_page_exposes_redirect_hook_and_guard_notice():

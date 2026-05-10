@@ -197,23 +197,10 @@ button {
   background: #eef4fd;
 }
 
-.selected-athlete-card {
-  margin-top: 0.25rem;
-  background: #ffffff;
-  border: 1px solid #ced9ea;
-  border-left: 4px solid #234d79;
-  border-radius: 10px;
-  padding: 0.55rem 0.7rem;
-}
-
-.selected-athlete-card p {
-  margin: 0;
-}
-
-#selected-athlete {
-  margin-top: 0.2rem;
-  color: #1a314f;
-  font-weight: 700;
+.search-results-list button.is-selected {
+  border-color: #234d79;
+  background: #e9f2ff;
+  box-shadow: 0 0 0 2px rgba(35, 77, 121, 0.18);
 }
 
 .config-save-button {

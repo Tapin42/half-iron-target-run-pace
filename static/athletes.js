@@ -92,14 +92,91 @@
     return minutes < 60 && seconds < 60;
   }
 
+  function pad2(value) {
+    return String(value).padStart(2, "0");
+  }
+
+  function formatHhmmss(hours, minutes, seconds) {
+    return `${pad2(hours)}:${pad2(minutes)}:${pad2(seconds)}`;
+  }
+
+  function inPreferredTargetRange(totalSeconds) {
+    return totalSeconds >= (3 * 3600 + 40 * 60) && totalSeconds <= (7 * 3600 + 30 * 60);
+  }
+
+  function normalizeTargetFinishTime(value) {
+    const text = normalizeIdentity(value);
+    if (!text) {
+      return null;
+    }
+
+    if (isValidHhmmss(text)) {
+      return text;
+    }
+
+    const hhmmOrHhmmss = text.match(/^(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?$/);
+    if (hhmmOrHhmmss) {
+      const hours = Number(hhmmOrHhmmss[1]);
+      const minutes = Number(hhmmOrHhmmss[2]);
+      const seconds = Number(hhmmOrHhmmss[3] || "0");
+      if (minutes >= 60 || seconds >= 60) {
+        return null;
+      }
+      return formatHhmmss(hours, minutes, seconds);
+    }
+
+    const numberOnly = text.match(/^\d+$/);
+    if (numberOnly) {
+      if (text.length <= 2) {
+        const hours = Number(text);
+        if (hours > 23) {
+          return null;
+        }
+        return formatHhmmss(hours, 0, 0);
+      }
+      if (text.length <= 4) {
+        const hoursOnly = Number(text);
+        const hhmmHours = Number(text.slice(0, -2));
+        const hhmmMinutes = Number(text.slice(-2));
+        const hhmmCandidateValid = hhmmHours <= 23 && hhmmMinutes < 60;
+        const hhmmCandidateSeconds = hhmmCandidateValid ? (hhmmHours * 3600 + hhmmMinutes * 60) : null;
+        const hoursCandidateSeconds = hoursOnly <= 23 ? hoursOnly * 3600 : null;
+
+        if (
+          hhmmCandidateSeconds !== null &&
+          (inPreferredTargetRange(hhmmCandidateSeconds) || hoursCandidateSeconds === null)
+        ) {
+          return formatHhmmss(hhmmHours, hhmmMinutes, 0);
+        }
+        if (hoursCandidateSeconds !== null) {
+          return formatHhmmss(hoursOnly, 0, 0);
+        }
+      }
+      return null;
+    }
+
+    const decimalHours = Number(text);
+    if (!Number.isNaN(decimalHours) && Number.isFinite(decimalHours) && decimalHours > 0 && decimalHours <= 23) {
+      const totalSeconds = Math.round(decimalHours * 3600);
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+      return formatHhmmss(hours, minutes, seconds);
+    }
+
+    return null;
+  }
+
   function addAthlete(payload) {
     const athlete = normalizeAthleteInput(payload);
     if (!athlete.entry_id && !athlete.bib) {
       throw new Error("missing_identity");
     }
-    if (!isValidHhmmss(athlete.target_finish_time)) {
+    const normalized = normalizeTargetFinishTime(athlete.target_finish_time);
+    if (!normalized) {
       throw new Error("invalid_target");
     }
+    athlete.target_finish_time = normalized;
     const rows = loadAthletes();
     const identityCheck = findByIdentity(rows, athlete);
     if (identityCheck.status === "match") {
@@ -114,7 +191,8 @@
   }
 
   function updateAthleteTarget(athleteId, targetFinishTime) {
-    if (!isValidHhmmss(targetFinishTime)) {
+    const normalized = normalizeTargetFinishTime(targetFinishTime);
+    if (!normalized) {
       throw new Error("invalid_target");
     }
     const rows = loadAthletes();
@@ -122,7 +200,7 @@
     if (!row) {
       return null;
     }
-    row.target_finish_time = normalizeIdentity(targetFinishTime);
+    row.target_finish_time = normalized;
     saveAthletes(rows);
     return row;
   }
@@ -152,6 +230,7 @@
     saveAthletes,
     findByIdentity,
     isValidHhmmss,
+    normalizeTargetFinishTime,
     addAthlete,
     updateAthleteTarget,
     deleteAthlete,

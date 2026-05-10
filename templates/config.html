@@ -31,13 +31,9 @@
     <input id="bib" type="hidden" name="bib">
     <input id="division" type="hidden" name="division">
 
-    <div class="selected-athlete-card">
-      <p class="muted">Selected athlete</p>
-      <p id="selected-athlete">None</p>
-    </div>
-
-    <label for="target_finish_time">Target Finish Time (HH:MM:SS)</label>
-    <input id="target_finish_time" name="target_finish_time" placeholder="05:00:00" required>
+    <label for="target_finish_time">Target Finish Time</label>
+    <p class="meta">Use hours, hours:minutes, or hours:minutes:seconds (e.g. 5, 5:30, or 05:30:00).</p>
+    <input id="target_finish_time" name="target_finish_time" placeholder="e.g. 5, 5:30, or 05:30:00" required>
 
     <button class="button-link config-save-button" type="submit">Save Athlete Target</button>
   </form>
@@ -49,17 +45,35 @@ const searchBtn = document.getElementById("search-btn");
 const searchTermInput = document.getElementById("search_term");
 const resultsList = document.getElementById("search-results");
 const feedback = document.getElementById("search-feedback");
-const selectedAthlete = document.getElementById("selected-athlete");
 const configForm = document.getElementById("config-form");
 const targetFinishInput = document.getElementById("target_finish_time");
+let selectedResultButton = null;
 
-function setSelected(row) {
+function clearSelection() {
+  document.getElementById("entry_id").value = "";
+  document.getElementById("profile_id").value = "";
+  document.getElementById("name").value = "";
+  document.getElementById("bib").value = "";
+  document.getElementById("division").value = "";
+  if (selectedResultButton) {
+    selectedResultButton.classList.remove("is-selected");
+    selectedResultButton = null;
+  }
+}
+
+function setSelected(row, button) {
   document.getElementById("entry_id").value = row.entry_id;
   document.getElementById("profile_id").value = row.profile_id || "";
   document.getElementById("name").value = row.name;
   document.getElementById("bib").value = row.bib || "";
   document.getElementById("division").value = row.division || "";
-  selectedAthlete.textContent = `${row.name} (bib ${row.bib || "?"})`;
+  if (selectedResultButton) {
+    selectedResultButton.classList.remove("is-selected");
+  }
+  selectedResultButton = button;
+  if (selectedResultButton) {
+    selectedResultButton.classList.add("is-selected");
+  }
 }
 
 configForm.addEventListener("submit", (event) => {
@@ -97,7 +111,7 @@ configForm.addEventListener("submit", (event) => {
       return;
     }
     if (error.message === "invalid_target") {
-      feedback.textContent = "Target finish must be in HH:MM:SS format.";
+      feedback.textContent = "Target finish must look like 5, 5:30, or 05:30:00.";
       return;
     }
     feedback.textContent = "Could not save athlete configuration.";
@@ -114,6 +128,7 @@ searchBtn.addEventListener("click", async () => {
 
   feedback.textContent = "Searching...";
   resultsList.innerHTML = "";
+  clearSelection();
 
   const response = await fetch(`/api/search?race_slug=${encodeURIComponent(raceSlug)}&q=${encodeURIComponent(q)}`);
   const payload = await response.json();
@@ -128,16 +143,25 @@ searchBtn.addEventListener("click", async () => {
     return;
   }
 
-  feedback.textContent = `Found ${results.length} athlete(s). Click one to select.`;
+  let firstButton = null;
   for (const row of results) {
     const li = document.createElement("li");
     const button = document.createElement("button");
     button.type = "button";
     button.textContent = `${row.name} (bib ${row.bib || "?"}) ${row.division ? "- " + row.division : ""}`;
-    button.addEventListener("click", () => setSelected(row));
+    button.addEventListener("click", () => setSelected(row, button));
+    if (!firstButton) {
+      firstButton = button;
+    }
     li.appendChild(button);
     resultsList.appendChild(li);
   }
+  setSelected(results[0], firstButton);
+  if (results.length === 1) {
+    feedback.textContent = "1 athlete found. Selected automatically.";
+    return;
+  }
+  feedback.textContent = `Found ${results.length} athlete(s). First result is selected automatically. Click another to change.`;
 });
 
 searchTermInput.addEventListener("keydown", (event) => {
