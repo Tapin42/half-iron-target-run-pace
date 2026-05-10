@@ -67,15 +67,34 @@ function renderAthletes() {
   for (const athlete of athletes) {
     const item = document.createElement("li");
     item.className = "athlete-list-item";
+    item.dataset.detailUrl = buildAthleteDetailUrl(athlete);
+    item.setAttribute("role", "link");
+    item.tabIndex = 0;
+    item.setAttribute("aria-label", `Open details for ${athlete.name}`);
+    item.addEventListener("click", (event) => {
+      if (event.target.closest(".athlete-row-actions")) {
+        return;
+      }
+      window.location.assign(item.dataset.detailUrl);
+    });
+    item.addEventListener("keydown", (event) => {
+      if (event.target !== item) {
+        return;
+      }
+      if (event.key !== "Enter" && event.key !== " ") {
+        return;
+      }
+      event.preventDefault();
+      window.location.assign(item.dataset.detailUrl);
+    });
 
     const topRow = document.createElement("div");
     topRow.className = "athlete-row-top";
 
-    const detailLink = document.createElement("a");
-    detailLink.className = "athlete-name-link";
-    detailLink.href = buildAthleteDetailUrl(athlete);
-    detailLink.textContent = athlete.name;
-    topRow.appendChild(detailLink);
+    const name = document.createElement("span");
+    name.className = "athlete-name-link";
+    name.textContent = athlete.name;
+    topRow.appendChild(name);
 
     const chipRow = document.createElement("div");
     chipRow.className = "athlete-chip-row";
@@ -131,7 +150,8 @@ function renderAthletes() {
     editButton.className = "action-button action-button-secondary";
     editButton.type = "button";
     editButton.textContent = "Edit target";
-    editButton.addEventListener("click", () => {
+    editButton.addEventListener("click", (event) => {
+      event.stopPropagation();
       const nextTarget = window.prompt(`Update target finish for ${athlete.name}`, athlete.target_finish_time);
       if (nextTarget === null) {
         return;
@@ -153,7 +173,8 @@ function renderAthletes() {
     deleteButton.className = "action-button action-button-danger";
     deleteButton.type = "button";
     deleteButton.textContent = "Delete";
-    deleteButton.addEventListener("click", () => {
+    deleteButton.addEventListener("click", (event) => {
+      event.stopPropagation();
       const confirmed = window.confirm(`Delete ${athlete.name} from this list?`);
       if (!confirmed) {
         return;

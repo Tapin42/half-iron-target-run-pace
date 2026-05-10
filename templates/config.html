@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="panel">
+<section class="panel config-dashboard-panel">
   <div class="panel-heading">
     <h2>Configure Athlete Target</h2>
     <a class="button-link button-link-secondary" href="{{ url_for('home') }}">Back to Athlete List</a>
@@ -8,7 +8,7 @@
   {% if error %}
     <p class="error">{{ error }}</p>
   {% endif %}
-  <form id="config-form" method="post" action="{{ url_for('save_config') }}">
+  <form id="config-form" class="config-dashboard-form" method="post" action="{{ url_for('save_config') }}">
     <label for="race_slug">Race</label>
     <select id="race_slug" name="race_slug">
       {% for race in race_options %}
@@ -17,13 +17,13 @@
     </select>
 
     <label for="search_term">Search Athlete (name or bib)</label>
-    <div class="row">
+    <div class="row config-search-row">
       <input id="search_term" type="text" placeholder="e.g. Jane or 1432">
-      <button id="search-btn" type="button">Search RTRT</button>
+      <button id="search-btn" class="button-link config-search-button" type="button">Search RTRT</button>
     </div>
 
-    <div id="search-feedback" class="muted"></div>
-    <ul id="search-results"></ul>
+    <div id="search-feedback" class="meta config-feedback" role="status" aria-live="polite"></div>
+    <ul id="search-results" class="search-results-list"></ul>
 
     <input id="entry_id" type="hidden" name="entry_id">
     <input id="profile_id" type="hidden" name="profile_id">
@@ -31,12 +31,15 @@
     <input id="bib" type="hidden" name="bib">
     <input id="division" type="hidden" name="division">
 
-    <p class="muted">Selected athlete: <span id="selected-athlete">None</span></p>
+    <div class="selected-athlete-card">
+      <p class="muted">Selected athlete</p>
+      <p id="selected-athlete">None</p>
+    </div>
 
     <label for="target_finish_time">Target Finish Time (HH:MM:SS)</label>
     <input id="target_finish_time" name="target_finish_time" placeholder="05:00:00" required>
 
-    <button type="submit">Save Athlete Target</button>
+    <button class="button-link config-save-button" type="submit">Save Athlete Target</button>
   </form>
 </section>
 

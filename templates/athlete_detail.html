@@ -1,11 +1,37 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="panel athlete-cheer-card">
-  <p class="athlete-actions">
-    <a href="{{ back_url }}">← Back to athlete list</a>
-    <span aria-hidden="true">·</span>
-    <a href="{{ refresh_url }}">Refresh split data</a>
-  </p>
+<section class="panel athlete-cheer-card athlete-dashboard-panel">
+  <div class="athlete-actions athlete-actions-bar detail-icon-action-bar">
+    <a class="detail-icon-button" href="{{ back_url }}" aria-label="Back to athlete list" title="Back to athlete list">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M20 12H6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+        <path d="M11 7l-5 5 5 5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+      </svg>
+    </a>
+    <a class="detail-icon-button" href="{{ refresh_url }}" aria-label="Refresh split data" title="Refresh split data">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M20 5v5h-5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+        <path d="M20 10a8 8 0 1 0 2.2 5.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+      </svg>
+    </a>
+    <button id="share-athlete-button" class="detail-icon-button" type="button" aria-label="Share athlete" title="Share athlete">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="18" cy="5" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/>
+        <circle cx="6" cy="12" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/>
+        <circle cx="18" cy="19" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/>
+        <path d="M8.3 11.1l7.2-4.2M8.3 12.9l7.2 4.2" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2"/>
+      </svg>
+    </button>
+    <button id="copy-athlete-url-button" class="detail-icon-button" type="button" aria-label="Copy athlete URL" title="Copy athlete URL">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M8 3h7l3 3v10a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="2"/>
+        <path d="M15 3v4h4" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="2"/>
+        <path d="M5 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-1" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+      </svg>
+    </button>
+    <input id="share-athlete-url" type="hidden" value="{{ share_url }}">
+  </div>
+  <p id="share-feedback" class="meta" aria-live="polite"></p>
 
   {% if athlete_state == "finished" %}
     {% if finish_summary and finish_summary.result == "hit" %}
@@ -18,24 +44,33 @@
   {% else %}
     <h2 class="athlete-headline"><strong>{{ athlete.name }}</strong> is not yet running.</h2>
   {% endif %}
-  <p class="athlete-subhead">Race: {{ race.display_name }} | Bib {{ athlete.bib or "?" }}</p>
+
+  <div class="athlete-chip-row athlete-detail-chip-row">
+    <span class="athlete-chip">Race {{ race.display_name }}</span>
+    <span class="athlete-chip">Bib {{ athlete.bib or "?" }}</span>
+    <span class="athlete-chip">Target {{ athlete.target_finish_time }}</span>
+  </div>
 
   {% if detail_error %}
     <p class="error">{{ detail_error }}</p>
   {% endif %}
 
-  {% if latest_split %}
-    <p class="athlete-latest">Latest update: <strong>{{ latest_split.name }} at {{ latest_split.time }}</strong></p>
-  {% else %}
-    <p class="muted athlete-latest">No split data available yet.</p>
-  {% endif %}
+  <div class="athlete-latest-row athlete-detail-latest-row">
+    {% if latest_split %}
+      <span class="split-status-badge split-status-live">LIVE</span>
+      <p class="athlete-latest">Latest update: <strong>{{ latest_split.name }} at {{ latest_split.time }}</strong></p>
+    {% else %}
+      <span class="split-status-badge split-status-offline">OFFLINE</span>
+      <p class="muted athlete-latest">No split data available yet.</p>
+    {% endif %}
+  </div>
 
   {% if athlete_state == "finished" and finish_summary %}
-    <p class="athlete-metric-row">
+    <p class="athlete-metric-row athlete-detail-metric-row">
       <span class="athlete-metric-label">Finish:</span>
       <span class="athlete-metric-value">{{ finish_summary.finish_time }}</span>
     </p>
-    <p class="athlete-metric-row">
+    <p class="athlete-metric-row athlete-detail-metric-row">
       <span class="athlete-metric-label">Target:</span>
       <span class="athlete-metric-value">{{ finish_summary.target_time }}</span>
     </p>
@@ -45,11 +80,11 @@
       <p class="bad athlete-context">Missed target by <strong>{{ finish_summary.delta_display }}</strong></p>
     {% endif %}
   {% elif t2_split and metrics %}
-    <p class="athlete-metric-row">
+    <p class="athlete-metric-row athlete-detail-metric-row">
       <span class="athlete-metric-label">Run Goal:</span>
       <span class="athlete-metric-value">{{ metrics.target_run_time }}</span>
     </p>
-    <p class="athlete-metric-row">
+    <p class="athlete-metric-row athlete-detail-metric-row">
       <span class="athlete-metric-label">Pace:</span>
       <span class="athlete-metric-value">{{ metrics.required_pace }}</span>
     </p>
@@ -63,11 +98,11 @@
 
   {% if athlete_state == "on_run" and progress %}
     {% if progress.state == "ahead" %}
-      <p class="good">At mile {{ "%.2f"|format(progress.distance_miles) }}, {{ progress.delta_display }} ahead of goal pace.</p>
+      <p class="good athlete-progress-callout">At mile {{ "%.2f"|format(progress.distance_miles) }}, {{ progress.delta_display }} ahead of goal pace.</p>
     {% elif progress.state == "behind" %}
-      <p class="bad">At mile {{ "%.2f"|format(progress.distance_miles) }}, {{ progress.delta_display }} behind goal pace.</p>
+      <p class="bad athlete-progress-callout">At mile {{ "%.2f"|format(progress.distance_miles) }}, {{ progress.delta_display }} behind goal pace.</p>
     {% else %}
-      <p>At mile {{ "%.2f"|format(progress.distance_miles) }}, on goal pace.</p>
+      <p class="athlete-progress-callout">At mile {{ "%.2f"|format(progress.distance_miles) }}, on goal pace.</p>
     {% endif %}
   {% endif %}
 
@@ -76,7 +111,7 @@
   {% endif %}
 
   {% if show_simulation_ui and sim_elapsed is not none %}
-    <p class="meta">Simulated elapsed: {{ "%02d:%02d:%02d"|format(sim_elapsed // 3600, (sim_elapsed % 3600) // 60, sim_elapsed % 60) }}</p>
+    <p class="meta dashboard-meta">Simulated elapsed: {{ "%02d:%02d:%02d"|format(sim_elapsed // 3600, (sim_elapsed % 3600) // 60, sim_elapsed % 60) }}</p>
   {% endif %}
   {% if show_simulation_ui %}
     <p class="meta">
@@ -88,4 +123,44 @@
     </p>
   {% endif %}
 </section>
+<script>
+const shareButton = document.getElementById("share-athlete-button");
+const copyButton = document.getElementById("copy-athlete-url-button");
+const shareUrlInput = document.getElementById("share-athlete-url");
+const shareFeedback = document.getElementById("share-feedback");
+
+async function copyShareUrl(feedbackText = "Share link copied.") {
+  const value = shareUrlInput.value;
+  if (!value) {
+    shareFeedback.textContent = "Could not create share link.";
+    return;
+  }
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: "Half-Iron athlete tracker",
+        text: "Track this athlete in Half-Iron Target Run Pace.",
+        url: value,
+      });
+      shareFeedback.textContent = "Share dialog opened.";
+      return;
+    } catch (_error) {
+      // User cancellation or platform limitations should fall through to clipboard.
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(value);
+    shareFeedback.textContent = feedbackText;
+  } catch (_error) {
+    shareFeedback.textContent = "Copy failed. Use this link manually: " + value;
+  }
+}
+
+shareButton.addEventListener("click", () => {
+  copyShareUrl();
+});
+copyButton.addEventListener("click", () => {
+  copyShareUrl("Athlete URL copied.");
+});
+</script>
 {% endblock %}

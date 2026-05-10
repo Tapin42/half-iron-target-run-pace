@@ -135,6 +135,84 @@ button {
   color: #1d2735;
 }
 
+.config-dashboard-panel {
+  background: linear-gradient(180deg, #f9fbff 0%, #f2f6fc 100%);
+  border: 1px solid #d7e0ed;
+  box-shadow: 0 8px 24px rgba(18, 31, 54, 0.08);
+}
+
+.config-dashboard-form {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.config-search-row {
+  align-items: center;
+}
+
+.config-search-button {
+  margin-top: 0;
+  min-width: 8rem;
+  text-align: center;
+}
+
+.config-feedback {
+  min-height: 1.25rem;
+  margin-top: 0.2rem;
+}
+
+.search-results-list {
+  list-style: none;
+  margin: 0.15rem 0 0.5rem;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.search-results-list li {
+  margin: 0;
+}
+
+.search-results-list button {
+  margin-top: 0;
+  width: 100%;
+  text-align: left;
+  border-radius: 10px;
+  border: 1px solid #c8d4e8;
+  background: #ffffff;
+  color: #1a314f;
+  font-weight: 600;
+  box-shadow: 0 2px 7px rgba(23, 44, 71, 0.05);
+}
+
+.search-results-list button:hover {
+  background: #eef4fd;
+}
+
+.selected-athlete-card {
+  margin-top: 0.25rem;
+  background: #ffffff;
+  border: 1px solid #ced9ea;
+  border-left: 4px solid #234d79;
+  border-radius: 10px;
+  padding: 0.55rem 0.7rem;
+}
+
+.selected-athlete-card p {
+  margin: 0;
+}
+
+#selected-athlete {
+  margin-top: 0.2rem;
+  color: #1a314f;
+  font-weight: 700;
+}
+
+.config-save-button {
+  margin-top: 0.55rem;
+  text-align: center;
+}
+
 .athlete-list {
   list-style: none;
   margin: 0;
@@ -150,6 +228,18 @@ button {
   border-radius: 12px;
   padding: 0.9rem;
   box-shadow: 0 3px 10px rgba(23, 44, 71, 0.06);
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.athlete-list-item:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 14px rgba(23, 44, 71, 0.1);
+}
+
+.athlete-list-item:focus-visible {
+  outline: 3px solid #4f83c3;
+  outline-offset: 2px;
 }
 
 .athlete-row-top {
@@ -266,9 +356,68 @@ button {
   font-size: 0.95rem;
 }
 
+.athlete-actions-bar {
+  display: flex;
+  justify-content: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.2rem;
+}
+
 .athlete-actions span {
   margin: 0 0.45rem;
   color: #7a8598;
+}
+
+.detail-nav-link {
+  min-width: 10.5rem;
+  text-align: center;
+}
+
+.detail-icon-action-bar {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin-bottom: 0.6rem;
+}
+
+.detail-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0;
+  width: 100%;
+  min-height: 2.4rem;
+  border-radius: 10px;
+  border: 1px solid #ced9ea;
+  background: #f4f8ff;
+  color: #173a5f;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.detail-icon-button:hover {
+  background: #e8f0fc;
+}
+
+.detail-icon-button:focus-visible {
+  outline: 3px solid #4f83c3;
+  outline-offset: 1px;
+}
+
+.detail-icon-button svg {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.athlete-detail-chip-row {
+  justify-content: center;
+  margin-top: 0.85rem;
+}
+
+.athlete-detail-latest-row {
+  justify-content: center;
+  margin-top: 1.15rem;
 }
 
 .athlete-headline {
@@ -284,8 +433,7 @@ button {
 }
 
 .athlete-latest {
-  margin-top: 1.3rem;
-  margin-bottom: 0.8rem;
+  margin: 0;
   font-size: 1.1rem;
 }
 
@@ -295,6 +443,14 @@ button {
   align-items: baseline;
   justify-content: center;
   gap: 0.75rem;
+}
+
+.athlete-detail-metric-row {
+  background: #ffffff;
+  border: 1px solid #d4ddec;
+  border-radius: 12px;
+  padding: 0.75rem 0.85rem;
+  box-shadow: 0 3px 10px rgba(23, 44, 71, 0.05);
 }
 
 .athlete-metric-label {
@@ -321,6 +477,12 @@ button {
   color: #3f4958;
 }
 
+.athlete-progress-callout {
+  margin-top: 1rem;
+  margin-bottom: 0;
+  font-size: 1.15rem;
+}
+
 @media (max-width: 640px) {
   .panel-heading {
     flex-direction: column;
@@ -335,11 +497,19 @@ button {
     text-align: left;
   }
 
+  .athlete-actions-bar {
+    justify-content: center;
+  }
+
   .button-link,
   #clear-all-athletes {
     width: 100%;
     box-sizing: border-box;
     text-align: center;
+  }
+
+  .config-search-row .config-search-button {
+    min-width: 0;
   }
 
   .athlete-row-actions .action-button {
@@ -353,5 +523,9 @@ button {
 
   .athlete-context {
     text-align: left;
+  }
+
+  .athlete-detail-latest-row {
+    align-items: flex-start;
   }
 }

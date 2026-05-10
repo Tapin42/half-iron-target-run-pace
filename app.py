@@ -1,6 +1,7 @@
 import os
 from flask import Flask, jsonify, redirect, render_template, request, url_for
 from dotenv import load_dotenv
+from itsdangerous import BadSignature, URLSafeSerializer
 
 from src.calculations import (
     compute_required_run_metrics,
@@ -33,10 +34,58 @@ SIMULATION_CHECKPOINTS = (
     ("Mid Run", 18000),
     ("One Finished", 19500),
 )
+SHARE_TOKEN_SALT = "athlete-share-v1"
 
 
 def _is_rtrt_config_error(exc: Exception) -> bool:
     return "RTRT credentials are not configured" in str(exc)
+
+
+def _create_share_token(payload: dict) -> str:
+    serializer = URLSafeSerializer(app.secret_key, salt=SHARE_TOKEN_SALT)
+    return serializer.dumps(payload)
+
+
+def _read_share_token(token: str) -> dict | None:
+    serializer = URLSafeSerializer(app.secret_key, salt=SHARE_TOKEN_SALT)
+    try:
+        payload = serializer.loads(token)
+    except BadSignature:
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _is_valid_share_payload(payload: dict | None) -> bool:
+    if not payload:
+        return False
+    race_slug = str(payload.get("race_slug", "")).strip()
+    entry_id = str(payload.get("entry_id", "")).strip()
+    name = str(payload.get("name", "")).strip()
+    target_finish_time = str(payload.get("target_finish_time", "")).strip()
+    if not race_slug or not entry_id or not name:
+        return False
+    if parse_hhmmss(target_finish_time) is None:
+        return False
+    return race_slug in races
+
+
+def _verify_share_payload_with_rtrt(payload: dict) -> bool:
+    race = races.get(str(payload.get("race_slug", "")).strip())
+    if not race:
+        return False
+    entry_id = str(payload.get("entry_id", "")).strip()
+    if not entry_id:
+        return False
+    profile_id = str(payload.get("profile_id", "")).strip()
+    try:
+        if profile_id:
+            rtrt_service.fetch_splits(race, entry_id, profile_id=profile_id)
+        else:
+            rtrt_service.fetch_splits(race, entry_id)
+    except Exception:
+        app.logger.exception("Shared athlete verification failed for entry %s", entry_id)
+        return False
+    return True
 
 
 def _has_unparsable_run_split(splits: list[dict], t2_seconds: int | None) -> bool:
@@ -208,6 +257,21 @@ def athlete_resolver(athlete_id: str):
     )
 
 
+@app.get("/share/<token>")
+def share_athlete_import(token: str):
+    payload = _read_share_token(token)
+    if not _is_valid_share_payload(payload):
+        return redirect(url_for("home", notice="unknown-athlete"))
+    if not _verify_share_payload_with_rtrt(payload):
+        return redirect(url_for("home", notice="unknown-athlete"))
+    race = races[str(payload.get("race_slug", "")).strip()]
+    return render_template(
+        "share_import.html",
+        share_athlete=payload,
+        share_race_display_name=race.display_name,
+    )
+
+
 @app.get("/athlete/detail")
 def athlete_detail_page():
     athlete = {
@@ -323,6 +387,18 @@ def athlete_detail_page():
     live_url = None
     if sim_elapsed is not None:
         live_url = url_for("athlete_detail_page", **detail_params)
+    share_token = _create_share_token(
+        {
+            "race_slug": athlete["race_slug"],
+            "entry_id": athlete["entry_id"],
+            "profile_id": athlete["profile_id"],
+            "name": athlete["name"],
+            "bib": athlete["bib"],
+            "division": athlete["division"],
+            "target_finish_time": athlete["target_finish_time"],
+        }
+    )
+    share_url = url_for("share_athlete_import", token=share_token, _external=True)
 
     return render_template(
         "athlete_detail.html",
@@ -345,6 +421,7 @@ def athlete_detail_page():
         finish_summary=finish_summary,
         back_url=url_for("home", sim_elapsed=sim_elapsed, debug=debug_query),
         refresh_url=url_for("athlete_detail_page", **refresh_params),
+        share_url=share_url,
     )
 
 

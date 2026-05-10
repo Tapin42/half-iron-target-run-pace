@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+  <h2>Add shared athlete to your tracker?</h2>
+  <p class="meta">Name: {{ share_athlete.name }}</p>
+  <p class="meta">Race: {{ share_race_display_name }}</p>
+  <p class="meta">Bib: {{ share_athlete.bib or "?" }} | Target: {{ share_athlete.target_finish_time }}</p>
+  <div class="row-inline-actions">
+    <button id="confirm-import-athlete" type="button">Add athlete</button>
+    <a href="{{ url_for('home') }}">Cancel</a>
+  </div>
+  <p id="share-import-feedback" class="meta" aria-live="polite"></p>
+</section>
+
+<script src="{{ url_for('static', filename='athletes.js') }}"></script>
+<script>
+const payload = {{ share_athlete | tojson }};
+const importButton = document.getElementById("confirm-import-athlete");
+const feedback = document.getElementById("share-import-feedback");
+
+function redirectToAthlete(athleteId) {
+  window.location.assign(`/athlete/${encodeURIComponent(athleteId)}`);
+}
+
+importButton.addEventListener("click", () => {
+  try {
+    const created = window.AthleteStoreClient.addAthlete(payload);
+    redirectToAthlete(created.id);
+  } catch (error) {
+    if (error.message === "duplicate_identity") {
+      const rows = window.AthleteStoreClient.loadAthletes();
+      const match = window.AthleteStoreClient.findByIdentity(rows, payload);
+      if (match.status === "match" && match.athlete) {
+        redirectToAthlete(match.athlete.id);
+        return;
+      }
+      feedback.textContent = "Athlete already exists in your tracker.";
+      return;
+    }
+    if (error.message === "conflicting_identity") {
+      feedback.textContent = "Could not import because entry ID and bib conflict in your tracker.";
+      return;
+    }
+    feedback.textContent = "Could not import shared athlete.";
+  }
+});
+</script>
+{% endblock %}
