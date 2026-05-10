@@ -2,9 +2,9 @@
 {% block content %}
 <section class="panel athlete-cheer-card">
   <p class="athlete-actions">
-    <a href="{{ url_for('home', sim_elapsed=sim_elapsed) if sim_elapsed is not none else url_for('home') }}">← Back to athlete list</a>
+    <a href="{{ back_url }}">← Back to athlete list</a>
     <span aria-hidden="true">·</span>
-    <a href="{{ url_for('athlete_detail', athlete_id=athlete.id, sim_elapsed=sim_elapsed) if sim_elapsed is not none else url_for('athlete_detail', athlete_id=athlete.id, refresh=1) }}">Refresh split data</a>
+    <a href="{{ refresh_url }}">Refresh split data</a>
   </p>
 
   {% if athlete_state == "finished" %}
@@ -75,15 +75,17 @@
     <p class="error">Run split data could not be fully parsed.</p>
   {% endif %}
 
-  {% if sim_elapsed is not none %}
+  {% if show_simulation_ui and sim_elapsed is not none %}
     <p class="meta">Simulated elapsed: {{ "%02d:%02d:%02d"|format(sim_elapsed // 3600, (sim_elapsed % 3600) // 60, sim_elapsed % 60) }}</p>
   {% endif %}
-  <p class="meta">
-    Simulation checkpoints:
-    {% for checkpoint in sim_checkpoints %}
-      <a href="{{ url_for('athlete_detail', athlete_id=athlete.id, sim_elapsed=checkpoint.seconds) }}">{{ checkpoint.label }}</a>{% if not loop.last %} | {% endif %}
-    {% endfor %}
-    {% if sim_elapsed is not none %} | <a href="{{ url_for('athlete_detail', athlete_id=athlete.id) }}">Live</a>{% endif %}
-  </p>
+  {% if show_simulation_ui %}
+    <p class="meta">
+      Simulation checkpoints:
+      {% for checkpoint in checkpoint_links %}
+        <a href="{{ checkpoint.url }}">{{ checkpoint.label }}</a>{% if not loop.last %} | {% endif %}
+      {% endfor %}
+      {% if live_url %} | <a href="{{ live_url }}">Live</a>{% endif %}
+    </p>
+  {% endif %}
 </section>
 {% endblock %}

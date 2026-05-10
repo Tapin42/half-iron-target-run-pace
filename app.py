@@ -1,7 +1,6 @@
 import os
-from flask import Flask, flash, jsonify, redirect, render_template, request, url_for
+from flask import Flask, jsonify, redirect, render_template, request, url_for
 from dotenv import load_dotenv
-from markupsafe import Markup, escape
 
 from src.calculations import (
     compute_required_run_metrics,
@@ -17,7 +16,6 @@ from src.rtrt_service import (
     find_latest_split,
     find_t2_split,
 )
-from src.storage import AthleteStore
 
 
 load_dotenv()
@@ -28,7 +26,6 @@ app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev-secret-key")
 races = load_race_configs()
 default_race_slug = next(iter(races))
 rtrt_service = RtrtService(RtrtClient())
-store = AthleteStore(os.getenv("ATHLETE_CONFIG_FILE", "data/athletes.json"))
 SIMULATION_CHECKPOINTS = (
     ("Before Start", 0),
     ("During Bike", 15000),
@@ -71,6 +68,16 @@ def _sim_elapsed_from_request() -> int | None:
     return _parse_sim_elapsed(request.args.get("sim_elapsed"))
 
 
+def _debug_query_from_request() -> str | None:
+    if "debug" not in request.args:
+        return None
+    return request.args.get("debug")
+
+
+def _show_simulation_ui(sim_elapsed: int | None) -> bool:
+    return sim_elapsed is not None or "debug" in request.args or "sim_elapsed" in request.args
+
+
 def _filter_splits_for_sim_elapsed(splits: list[dict], sim_elapsed: int | None) -> list[dict]:
     if sim_elapsed is None:
         return splits
@@ -88,33 +95,12 @@ def _simulation_checkpoints() -> list[dict]:
     ]
 
 
-def _athletes_with_latest_split_snapshot(
-    rows: list[dict], *, sim_elapsed: int | None
-) -> list[dict]:
-    enriched: list[dict] = []
-    for athlete in rows:
-        athlete_row = dict(athlete)
-        athlete_row["latest_split"] = None
-        race = races.get(athlete_row.get("race_slug"))
-        if not race:
-            enriched.append(athlete_row)
-            continue
-        try:
-            entry_id = athlete_row.get("entry_id", "")
-            profile_id = athlete_row.get("profile_id")
-            if profile_id:
-                splits = rtrt_service.fetch_splits(race, entry_id, profile_id=profile_id)
-            else:
-                splits = rtrt_service.fetch_splits(race, entry_id)
-            splits = _filter_splits_for_sim_elapsed(splits, sim_elapsed)
-            athlete_row["latest_split"] = find_latest_split(splits)
-        except Exception:
-            app.logger.exception(
-                "RTRT split fetch failed while loading home snapshot for athlete %s",
-                athlete_row.get("entry_id", ""),
-            )
-        enriched.append(athlete_row)
-    return enriched
+def _is_race_finish_split(split: dict, race_finish_split: str) -> bool:
+    split_name = str(split.get("name", "")).strip().upper()
+    finish_name = (race_finish_split or "FINISH").strip().upper()
+    if not split_name or not finish_name:
+        return False
+    return split_name == finish_name or split_name.startswith(f"{finish_name} ")
 
 
 def _render_config_page(*, error: str | None, race_slug: str):
@@ -123,24 +109,23 @@ def _render_config_page(*, error: str | None, race_slug: str):
         race_options=races.values(),
         default_race_slug=race_slug,
         error=error,
-        error_html=None,
     )
 
 
 @app.route("/")
 def home():
     sim_elapsed = _sim_elapsed_from_request()
-    mode = (request.args.get("mode") or "").strip().lower()
-    active_mode = mode if mode in {"edit", "delete"} else None
-    active_athlete_id = (request.args.get("athlete_id") or "").strip() if active_mode else None
-    athletes = _athletes_with_latest_split_snapshot(store.list(), sim_elapsed=sim_elapsed)
+    debug_query = _debug_query_from_request()
+    show_simulation_ui = _show_simulation_ui(sim_elapsed)
+    notice = (request.args.get("notice") or "").strip()
+    home_notice = "Unknown athlete." if notice == "unknown-athlete" else None
     return render_template(
         "index.html",
-        athletes=athletes,
+        home_notice=home_notice,
         sim_elapsed=sim_elapsed,
+        show_simulation_ui=show_simulation_ui,
+        debug_query=debug_query,
         sim_checkpoints=_simulation_checkpoints(),
-        active_mode=active_mode,
-        active_athlete_id=active_athlete_id,
     )
 
 
@@ -152,71 +137,12 @@ def config_page():
 @app.post("/config")
 def save_config():
     race_slug = request.form.get("race_slug", default_race_slug)
-    entry_id = (request.form.get("entry_id") or "").strip()
-    profile_id = (request.form.get("profile_id") or "").strip()
-    name = (request.form.get("name") or "").strip()
-    bib = (request.form.get("bib") or "").strip()
-    division = (request.form.get("division") or "").strip()
-    target_finish_time = (request.form.get("target_finish_time") or "").strip()
-
-    identity_check = store.find_by_identity(race_slug=race_slug, entry_id=entry_id, bib=bib)
-
-    error_html = None
-
-    if race_slug not in races:
-        error = "Unknown race selection."
-    elif not name:
-        error = "Select an athlete from search results first."
-    elif not entry_id and not bib:
-        error = "Provide at least one athlete identity (entry ID or bib)."
-    elif identity_check["status"] == "match":
-        athlete_id = identity_check["athlete"]["id"]
-        edit_url = url_for("home", mode="edit", athlete_id=athlete_id)
-        error = "This athlete is already configured."
-        error_html = Markup(
-            f'This athlete is already configured. <a href="{escape(edit_url)}">Go to athlete list to edit this row.</a>'
-        )
-    elif identity_check["status"] == "conflict":
-        error = "Entry ID and bib point to different athletes."
-    elif parse_hhmmss(target_finish_time) is None:
-        error = "Target finish must be in HH:MM:SS format."
-    else:
-        try:
-            store.add(
-                race_slug=race_slug,
-                entry_id=entry_id,
-                profile_id=profile_id,
-                bib=bib,
-                name=name,
-                division=division,
-                target_finish_time=target_finish_time,
-            )
-            return redirect(url_for("home"))
-        except ValueError as exc:
-            if str(exc) == "duplicate identity":
-                identity_match = store.find_by_identity(race_slug=race_slug, entry_id=entry_id, bib=bib)
-                if identity_match["status"] == "match":
-                    athlete_id = identity_match["athlete"]["id"]
-                    edit_url = url_for("home", mode="edit", athlete_id=athlete_id)
-                    error = "This athlete is already configured."
-                    error_html = Markup(
-                        f'This athlete is already configured. <a href="{escape(edit_url)}">Go to athlete list to edit this row.</a>'
-                    )
-                else:
-                    error = "This athlete is already configured."
-            elif str(exc) == "conflicting identity":
-                error = "Entry ID and bib point to different athletes."
-            elif str(exc) == "missing identity":
-                error = "Provide at least one athlete identity (entry ID or bib)."
-            else:
-                error = "Could not save athlete configuration."
-
-    return render_template(
-        "config.html",
-        race_options=races.values(),
-        default_race_slug=race_slug,
-        error=error,
-        error_html=error_html,
+    return (
+        _render_config_page(
+            error="JavaScript is required to save athlete configuration in this version.",
+            race_slug=race_slug,
+        ),
+        400,
     )
 
 
@@ -246,24 +172,69 @@ def search_athletes():
     return jsonify({"results": athletes})
 
 
+@app.get("/api/latest-split")
+def latest_split():
+    race_slug = request.args.get("race_slug", default_race_slug)
+    entry_id = (request.args.get("entry_id") or "").strip()
+    profile_id = (request.args.get("profile_id") or "").strip()
+    race = races.get(race_slug)
+    if not race:
+        return jsonify({"error": "Unknown race"}), 400
+    if not entry_id:
+        return jsonify({"error": "Missing entry_id"}), 400
+
+    sim_elapsed = _sim_elapsed_from_request()
+    try:
+        if profile_id:
+            splits = rtrt_service.fetch_splits(race, entry_id, profile_id=profile_id)
+        else:
+            splits = rtrt_service.fetch_splits(race, entry_id)
+        splits = _filter_splits_for_sim_elapsed(splits, sim_elapsed)
+        return jsonify({"latest_split": find_latest_split(splits)})
+    except Exception:
+        app.logger.exception("RTRT split fetch failed for home snapshot")
+        return jsonify({"latest_split": None}), 200
+
+
 @app.get("/athlete/<athlete_id>")
-def athlete_detail(athlete_id: str):
-    athlete = store.get(athlete_id)
-    if not athlete:
-        return redirect(url_for("home"))
+def athlete_resolver(athlete_id: str):
+    sim_elapsed = _sim_elapsed_from_request()
+    debug_query = _debug_query_from_request()
+    return render_template(
+        "athlete_resolver.html",
+        athlete_id=athlete_id,
+        sim_elapsed=sim_elapsed,
+        debug_query=debug_query,
+    )
+
+
+@app.get("/athlete/detail")
+def athlete_detail_page():
+    athlete = {
+        "id": (request.args.get("athlete_id") or "").strip(),
+        "race_slug": (request.args.get("race_slug") or "").strip(),
+        "entry_id": (request.args.get("entry_id") or "").strip(),
+        "profile_id": (request.args.get("profile_id") or "").strip(),
+        "name": (request.args.get("name") or "").strip(),
+        "bib": (request.args.get("bib") or "").strip(),
+        "division": (request.args.get("division") or "").strip(),
+        "target_finish_time": (request.args.get("target_finish_time") or "").strip(),
+    }
+    if not athlete["race_slug"] or not athlete["entry_id"] or not athlete["name"]:
+        return redirect(url_for("home", notice="unknown-athlete"))
 
     race = races.get(athlete["race_slug"])
     if not race:
-        return redirect(url_for("home"))
+        return redirect(url_for("home", notice="unknown-athlete"))
 
     detail_error = None
     splits: list[dict] = []
     sim_elapsed = _sim_elapsed_from_request()
+    debug_query = _debug_query_from_request()
+    show_simulation_ui = _show_simulation_ui(sim_elapsed)
     try:
-        if athlete.get("profile_id"):
-            splits = rtrt_service.fetch_splits(
-                race, athlete["entry_id"], profile_id=athlete["profile_id"]
-            )
+        if athlete["profile_id"]:
+            splits = rtrt_service.fetch_splits(race, athlete["entry_id"], profile_id=athlete["profile_id"])
         else:
             splits = rtrt_service.fetch_splits(race, athlete["entry_id"])
         splits = _filter_splits_for_sim_elapsed(splits, sim_elapsed)
@@ -276,7 +247,9 @@ def athlete_detail(athlete_id: str):
 
     latest_split = find_latest_split(splits)
     t2_split = find_t2_split(splits)
-    finish_candidates = [split for split in splits if "FINISH" in split["name"].upper()]
+    finish_candidates = [
+        split for split in splits if _is_race_finish_split(split, race.finish_split)
+    ]
     finish_split = max(finish_candidates, key=lambda split: split["seconds"]) if finish_candidates else None
     run_split_parse_warning = _has_unparsable_run_split(
         splits,
@@ -322,6 +295,35 @@ def athlete_detail(athlete_id: str):
                     else:
                         progress["delta_signed"] = f"+{progress['delta_display']}"
 
+    detail_params = {
+        "athlete_id": athlete["id"],
+        "race_slug": athlete["race_slug"],
+        "entry_id": athlete["entry_id"],
+        "profile_id": athlete["profile_id"],
+        "name": athlete["name"],
+        "bib": athlete["bib"],
+        "division": athlete["division"],
+        "target_finish_time": athlete["target_finish_time"],
+    }
+    if debug_query is not None:
+        detail_params["debug"] = debug_query
+
+    refresh_params = dict(detail_params)
+    if sim_elapsed is not None:
+        refresh_params["sim_elapsed"] = sim_elapsed
+
+    checkpoint_links = []
+    for checkpoint in _simulation_checkpoints():
+        checkpoint_query = dict(detail_params)
+        checkpoint_query["sim_elapsed"] = checkpoint["seconds"]
+        checkpoint_links.append(
+            {"label": checkpoint["label"], "url": url_for("athlete_detail_page", **checkpoint_query)}
+        )
+
+    live_url = None
+    if sim_elapsed is not None:
+        live_url = url_for("athlete_detail_page", **detail_params)
+
     return render_template(
         "athlete_detail.html",
         athlete=athlete,
@@ -334,43 +336,16 @@ def athlete_detail(athlete_id: str):
         run_split_parse_warning=run_split_parse_warning,
         detail_error=detail_error,
         sim_elapsed=sim_elapsed,
+        show_simulation_ui=show_simulation_ui,
+        debug_query=debug_query,
         sim_checkpoints=_simulation_checkpoints(),
+        checkpoint_links=checkpoint_links,
+        live_url=live_url,
         athlete_state=athlete_state,
         finish_summary=finish_summary,
+        back_url=url_for("home", sim_elapsed=sim_elapsed, debug=debug_query),
+        refresh_url=url_for("athlete_detail_page", **refresh_params),
     )
-
-
-@app.post("/athlete/<athlete_id>/target")
-def update_athlete_target(athlete_id: str):
-    athlete = store.get(athlete_id)
-    if not athlete:
-        flash("Athlete not found; target was not updated.", "warning")
-        return redirect(url_for("home"))
-
-    target_finish_time = (request.form.get("target_finish_time") or "").strip()
-    if parse_hhmmss(target_finish_time) is None:
-        flash("Target finish must be in HH:MM:SS format.", "error")
-        return redirect(url_for("home"))
-
-    store.update_target_time(athlete_id, target_finish_time)
-    flash(f"Updated target finish time to {target_finish_time} for {athlete['name']}.", "success")
-    return redirect(url_for("home"))
-
-
-@app.post("/athlete/<athlete_id>/delete")
-def delete_athlete(athlete_id: str):
-    confirm = (request.form.get("confirm") or "").strip().lower()
-    if confirm != "yes":
-        flash("Delete not confirmed; athlete was not removed.", "warning")
-        return redirect(url_for("home"))
-
-    deleted = store.delete(athlete_id)
-    if not deleted:
-        flash("Athlete not found; nothing was deleted.", "warning")
-        return redirect(url_for("home"))
-
-    flash(f"Removed athlete {deleted['name']}.", "success")
-    return redirect(url_for("home"))
 
 
 if __name__ == "__main__":

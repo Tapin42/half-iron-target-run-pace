@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel" data-athlete-id="{{ athlete_id }}">
+  <p class="muted">Loading athlete details...</p>
+</section>
+
+<script src="{{ url_for('static', filename='athletes.js') }}"></script>
+<script>
+const root = document.querySelector("[data-athlete-id]");
+const athleteId = root.dataset.athleteId;
+const athlete = window.AthleteStoreClient.getAthleteById(athleteId);
+
+if (!athlete) {
+  const fallback = new URL("/?notice=unknown-athlete", window.location.origin);
+  window.location.replace(fallback.toString());
+} else {
+  const target = new URL("/athlete/detail", window.location.origin);
+  target.searchParams.set("athlete_id", athlete.id);
+  target.searchParams.set("race_slug", athlete.race_slug);
+  target.searchParams.set("entry_id", athlete.entry_id);
+  target.searchParams.set("profile_id", athlete.profile_id || "");
+  target.searchParams.set("name", athlete.name);
+  target.searchParams.set("bib", athlete.bib || "");
+  target.searchParams.set("division", athlete.division || "");
+  target.searchParams.set("target_finish_time", athlete.target_finish_time);
+
+  const current = new URL(window.location.href);
+  const simElapsed = current.searchParams.get("sim_elapsed");
+  const debug = current.searchParams.get("debug");
+  if (simElapsed) {
+    target.searchParams.set("sim_elapsed", simElapsed);
+  }
+  if (debug !== null) {
+    target.searchParams.set("debug", debug);
+  }
+
+  window.location.replace(target.toString());
+}
+</script>
+{% endblock %}

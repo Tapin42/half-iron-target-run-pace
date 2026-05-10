@@ -5,7 +5,6 @@ from src.races import RaceConfig
 from src.races import load_race_configs
 from src.rtrt_client import RtrtClient
 from src.rtrt_service import RtrtService
-from src.storage import AthleteStore
 
 
 class FakeResponse:
@@ -167,6 +166,13 @@ def test_venice_race_default_search_category_is_optional(monkeypatch):
     assert races["venice-70.3"].search_category is None
 
 
+def test_da_nang_race_config_uses_vietnam_event_key():
+    races = load_race_configs()
+
+    assert races["da-nang-70.3"].display_name == "Ironman 70.3 Da Nang"
+    assert races["da-nang-70.3"].event_key == "IRM-VIETNAM-2026"
+
+
 def test_search_athletes_limits_profiles_results_to_25_rows():
     race = RaceConfig(
         slug="venice-70.3",
@@ -304,23 +310,22 @@ def test_api_search_masks_upstream_error_and_returns_safe_message(monkeypatch):
     assert response.get_json() == {"error": "RTRT search is temporarily unavailable. Please try again."}
 
 
-def test_athlete_detail_masks_split_errors_for_ui(monkeypatch, tmp_path):
-    monkeypatch.setattr(app_module, "store", AthleteStore(str(tmp_path / "athletes.json")))
-    row = app_module.store.add(
-        race_slug="rockford-70.3",
-        entry_id="e1",
-        bib="101",
-        name="Amy Adams",
-        division="F30-34",
-        target_finish_time="05:30:00",
-    )
-
+def test_athlete_detail_masks_split_errors_for_ui(monkeypatch):
     def raise_upstream(_race, _entry_id):
         raise RuntimeError("split endpoint leaked debug details")
 
     monkeypatch.setattr(app_module.rtrt_service, "fetch_splits", raise_upstream)
     test_client = app_module.app.test_client()
-    response = test_client.get(f"/athlete/{row['id']}")
+    response = test_client.get(
+        "/athlete/detail"
+        "?athlete_id=local-athlete-id-1"
+        "&race_slug=rockford-70.3"
+        "&entry_id=e1"
+        "&name=Amy%20Adams"
+        "&bib=101"
+        "&division=F30-34"
+        "&target_finish_time=05:30:00"
+    )
 
     assert response.status_code == 200
     body = response.get_data(as_text=True)

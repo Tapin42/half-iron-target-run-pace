@@ -5,9 +5,7 @@
     <h2>Configure Athlete Target</h2>
     <a class="button-link button-link-secondary" href="{{ url_for('home') }}">Back to Athlete List</a>
   </div>
-  {% if error_html %}
-    <p class="error">{{ error_html }}</p>
-  {% elif error %}
+  {% if error %}
     <p class="error">{{ error }}</p>
   {% endif %}
   <form id="config-form" method="post" action="{{ url_for('save_config') }}">
@@ -36,18 +34,21 @@
     <p class="muted">Selected athlete: <span id="selected-athlete">None</span></p>
 
     <label for="target_finish_time">Target Finish Time (HH:MM:SS)</label>
-    <input id="target_finish_time" name="target_finish_time" placeholder="05:30:00" required>
+    <input id="target_finish_time" name="target_finish_time" placeholder="05:00:00" required>
 
     <button type="submit">Save Athlete Target</button>
   </form>
 </section>
 
+<script src="{{ url_for('static', filename='athletes.js') }}"></script>
 <script>
 const searchBtn = document.getElementById("search-btn");
 const searchTermInput = document.getElementById("search_term");
 const resultsList = document.getElementById("search-results");
 const feedback = document.getElementById("search-feedback");
 const selectedAthlete = document.getElementById("selected-athlete");
+const configForm = document.getElementById("config-form");
+const targetFinishInput = document.getElementById("target_finish_time");
 
 function setSelected(row) {
   document.getElementById("entry_id").value = row.entry_id;
@@ -57,6 +58,48 @@ function setSelected(row) {
   document.getElementById("division").value = row.division || "";
   selectedAthlete.textContent = `${row.name} (bib ${row.bib || "?"})`;
 }
+
+configForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+
+  const payload = {
+    race_slug: document.getElementById("race_slug").value,
+    entry_id: document.getElementById("entry_id").value,
+    profile_id: document.getElementById("profile_id").value,
+    name: document.getElementById("name").value,
+    bib: document.getElementById("bib").value,
+    division: document.getElementById("division").value,
+    target_finish_time: targetFinishInput.value.trim(),
+  };
+
+  if (!payload.name) {
+    feedback.textContent = "Select an athlete from search results first.";
+    return;
+  }
+
+  try {
+    window.AthleteStoreClient.addAthlete(payload);
+    window.location.assign("/");
+  } catch (error) {
+    if (error.message === "missing_identity") {
+      feedback.textContent = "Provide at least one athlete identity (entry ID or bib).";
+      return;
+    }
+    if (error.message === "duplicate_identity") {
+      feedback.textContent = "This athlete is already configured.";
+      return;
+    }
+    if (error.message === "conflicting_identity") {
+      feedback.textContent = "Entry ID and bib point to different athletes.";
+      return;
+    }
+    if (error.message === "invalid_target") {
+      feedback.textContent = "Target finish must be in HH:MM:SS format.";
+      return;
+    }
+    feedback.textContent = "Could not save athlete configuration.";
+  }
+});
 
 searchBtn.addEventListener("click", async () => {
   const raceSlug = document.getElementById("race_slug").value;
