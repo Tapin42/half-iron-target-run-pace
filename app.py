@@ -1,4 +1,6 @@
 import os
+import re
+import time
 from flask import Flask, jsonify, redirect, render_template, request, url_for
 from dotenv import load_dotenv
 from itsdangerous import BadSignature, URLSafeSerializer
@@ -29,6 +31,8 @@ app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev-secret-key")
 races = load_race_configs()
 default_race_slug = next(iter(races))
 rtrt_service = RtrtService(RtrtClient())
+FINISH_ALIAS_CACHE_TTL_SECONDS = 6 * 60 * 60
+finish_alias_cache: dict[str, tuple[float, set[str]]] = {}
 SIMULATION_CHECKPOINTS = (
     ("Before Start", 0),
     ("During Bike", 15000),
@@ -90,11 +94,40 @@ def _verify_share_payload_with_rtrt(payload: dict) -> bool:
     return True
 
 
-def _has_unparsable_run_split(splits: list[dict], t2_seconds: int | None) -> bool:
+def _normalize_split_name(name: str) -> str:
+    return re.sub(r"[^A-Z0-9]+", " ", (name or "").upper()).strip()
+
+
+def _finish_aliases_for_race(race) -> set[str]:
+    event_key = race.event_key
+    now = time.time()
+    cached = finish_alias_cache.get(event_key)
+    if cached and (now - cached[0]) < FINISH_ALIAS_CACHE_TTL_SECONDS:
+        return cached[1]
+
+    aliases = {_normalize_split_name(race.finish_split or "FINISH"), "FINISH"}
+    try:
+        upstream_aliases = rtrt_service.fetch_finish_split_aliases(race)
+        for alias in upstream_aliases:
+            normalized_alias = _normalize_split_name(alias)
+            if normalized_alias:
+                aliases.add(normalized_alias)
+    except Exception:
+        app.logger.exception("RTRT points fetch failed for finish aliases in event %s", event_key)
+
+    finish_alias_cache[event_key] = (now, aliases)
+    return aliases
+
+
+def _has_unparsable_run_split(
+    splits: list[dict], t2_seconds: int | None, finish_aliases: set[str]
+) -> bool:
     for split in splits:
         name = str(split.get("name", "")).upper()
         seconds = split.get("seconds")
         if t2_seconds is not None and isinstance(seconds, int) and seconds < t2_seconds:
+            continue
+        if _is_race_finish_split(split, finish_aliases):
             continue
         if is_run_start_split(name):
             continue
@@ -148,12 +181,21 @@ def _simulation_checkpoints() -> list[dict]:
     ]
 
 
-def _is_race_finish_split(split: dict, race_finish_split: str) -> bool:
-    split_name = str(split.get("name", "")).strip().upper()
-    finish_name = (race_finish_split or "FINISH").strip().upper()
-    if not split_name or not finish_name:
+def _is_race_finish_split(split: dict, finish_aliases: set[str]) -> bool:
+    split_name = _normalize_split_name(str(split.get("name", "")))
+    if not split_name:
         return False
-    return split_name == finish_name or split_name.startswith(f"{finish_name} ")
+    for finish_name in finish_aliases:
+        if not finish_name:
+            continue
+        if split_name == finish_name or split_name.startswith(f"{finish_name} "):
+            return True
+    # RTRT can publish aliases like "RUN/FINISH" even when race finish config is "FINISH".
+    if "FINISH" in finish_aliases:
+        split_tokens = set(split_name.split())
+        if "FINISH" in split_tokens and ("RUN" in split_tokens or "OVERALL" in split_tokens):
+            return True
+    return False
 
 
 def _render_config_page(*, error: str | None, race_slug: str):
@@ -316,14 +358,16 @@ def athlete_detail_page():
     latest_split = find_latest_split(splits)
     t2_split = find_t2_split(splits)
     run_start_split = find_run_start_split(splits)
+    finish_aliases = _finish_aliases_for_race(race)
     finish_candidates = [
-        split for split in splits if _is_race_finish_split(split, race.finish_split)
+        split for split in splits if _is_race_finish_split(split, finish_aliases)
     ]
     finish_split = max(finish_candidates, key=lambda split: split["seconds"]) if finish_candidates else None
     run_anchor_split = t2_split or run_start_split
     run_split_parse_warning = _has_unparsable_run_split(
         splits,
         run_anchor_split["seconds"] if run_anchor_split else None,
+        finish_aliases,
     )
     run_anchor_label = "T2" if t2_split else ("Run Start" if run_start_split else "Run")
 

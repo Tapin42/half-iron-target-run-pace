@@ -284,6 +284,28 @@ def test_fetch_splits_falls_back_to_entry_endpoint_when_profile_split_rows_missi
     assert client.calls[1][0].endswith("/entries/entry-1/splits")
 
 
+def test_fetch_finish_split_aliases_reads_is_finish_points():
+    race = RaceConfig(slug="da-nang-70.3", display_name="Race", event_key="IRM-VIETNAM-2026")
+    client = StubClient(
+        [
+            {
+                "list": [
+                    {"label": "Run/Finish", "name": "FINISH-H", "isFinish": "1"},
+                    {"label": "Finish", "name": "SPRINTFINISH", "isFinish": "true"},
+                    {"label": "T2", "name": "T2", "isFinish": "0"},
+                ]
+            }
+        ]
+    )
+    service = RtrtService(client)
+
+    aliases = service.fetch_finish_split_aliases(race)
+
+    assert aliases == {"Run/Finish", "FINISH-H", "Finish", "SPRINTFINISH"}
+    assert client.calls[0][0].endswith("/points")
+    assert client.calls[0][1]["max"] == "300"
+
+
 def test_api_search_returns_explicit_config_error(monkeypatch):
     test_client = app_module.app.test_client()
 

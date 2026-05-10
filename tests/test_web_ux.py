@@ -169,6 +169,105 @@ def test_athlete_detail_uses_run_start_when_t2_missing(monkeypatch):
     assert "Run split data could not be fully parsed." not in body
 
 
+def test_athlete_detail_treats_run_finish_as_finish_split(monkeypatch):
+    monkeypatch.setattr(
+        app_module.rtrt_service,
+        "fetch_splits",
+        lambda _race, _entry_id: [
+            {"name": "RUN START", "time": "02:35:28", "seconds": 9328, "distance_miles": None},
+            {"name": "RUN/FINISH", "time": "04:02:21", "seconds": 14541, "distance_miles": None},
+        ],
+    )
+    test_client = app_module.app.test_client()
+
+    response = test_client.get(
+        "/athlete/detail"
+        "?athlete_id=local-athlete-id-1"
+        "&race_slug=da-nang-70.3"
+        "&entry_id=e1"
+        "&name=Rodrigo%20Acevedo"
+        "&bib=3585"
+        "&division=M35-39"
+        "&target_finish_time=04:00:00"
+    )
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert "Latest update: <strong>RUN/FINISH at 04:02:21</strong>" in body
+    assert "didn't quite make it." in body
+    assert "Finish:" in body
+    assert "Missed target by <strong>00:02:21</strong>" in body
+    assert "Run Goal:" not in body
+    assert "Run split data could not be fully parsed." not in body
+
+
+def test_athlete_detail_uses_points_finish_aliases_for_finish_detection(monkeypatch):
+    app_module.finish_alias_cache.clear()
+    monkeypatch.setattr(
+        app_module.rtrt_service,
+        "fetch_splits",
+        lambda _race, _entry_id: [
+            {"name": "RUN START", "time": "02:35:28", "seconds": 9328, "distance_miles": None},
+            {"name": "GOAL LINE", "time": "04:02:21", "seconds": 14541, "distance_miles": None},
+        ],
+    )
+    monkeypatch.setattr(
+        app_module.rtrt_service,
+        "fetch_finish_split_aliases",
+        lambda _race: {"GOAL LINE"},
+    )
+    test_client = app_module.app.test_client()
+
+    response = test_client.get(
+        "/athlete/detail"
+        "?athlete_id=local-athlete-id-1"
+        "&race_slug=da-nang-70.3"
+        "&entry_id=e1"
+        "&name=Rodrigo%20Acevedo"
+        "&bib=3585"
+        "&division=M35-39"
+        "&target_finish_time=04:00:00"
+    )
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert "didn't quite make it." in body
+    assert "Finish:" in body
+    assert "Run Goal:" not in body
+    assert "Run split data could not be fully parsed." not in body
+
+
+def test_finish_alias_cache_refreshes_after_six_hours(monkeypatch):
+    app_module.finish_alias_cache.clear()
+    race = app_module.races["da-nang-70.3"]
+    ttl = app_module.FINISH_ALIAS_CACHE_TTL_SECONDS
+    calls = {"count": 0}
+
+    def fake_fetch_finish_aliases(_race):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            return {"RUN/FINISH"}
+        return {"GOAL LINE"}
+
+    timestamps = iter([1000.0, 1000.0 + ttl - 1, 1000.0 + ttl + 1])
+    monkeypatch.setattr(app_module.time, "time", lambda: next(timestamps))
+    monkeypatch.setattr(
+        app_module.rtrt_service,
+        "fetch_finish_split_aliases",
+        fake_fetch_finish_aliases,
+    )
+
+    aliases_first = app_module._finish_aliases_for_race(race)
+    aliases_second = app_module._finish_aliases_for_race(race)
+    aliases_third = app_module._finish_aliases_for_race(race)
+
+    assert calls["count"] == 2
+    assert aliases_first == aliases_second
+    assert "RUN FINISH" in aliases_first
+    assert "GOAL LINE" in aliases_third
+    assert aliases_third != aliases_first
+
+
 def test_athlete_detail_page_includes_share_button_and_share_url(monkeypatch):
     monkeypatch.setattr(
         app_module.rtrt_service,

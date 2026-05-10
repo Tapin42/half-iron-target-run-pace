@@ -41,6 +41,23 @@ class RtrtService:
         payload = self.client.post(split_url, {"max": "200"})
         return self._normalize_splits(self._extract_split_rows(payload))
 
+    def fetch_finish_split_aliases(self, race: RaceConfig) -> set[str]:
+        points_url = f"https://api.rtrt.me/events/{race.event_key}/points"
+        payload = self.client.post(points_url, {"max": "300"})
+        list_payload = payload.get("list", [])
+        if not isinstance(list_payload, list):
+            return set()
+
+        aliases: set[str] = set()
+        for item in list_payload:
+            if not isinstance(item, dict) or not _is_truthy(item.get("isFinish")):
+                continue
+            for key in ("label", "name"):
+                value = str(item.get(key) or "").strip()
+                if value:
+                    aliases.add(value)
+        return aliases
+
     def _normalize_splits(self, split_rows: list[dict]) -> list[dict]:
         normalized = []
         for row in split_rows:
@@ -191,3 +208,7 @@ def is_run_start_split(split_name: str) -> bool:
 
 def find_run_start_split(splits: list[dict]) -> dict | None:
     return next((split for split in splits if is_run_start_split(split.get("name", ""))), None)
+
+
+def _is_truthy(value: object) -> bool:
+    return str(value).strip().lower() in {"1", "true", "yes"}

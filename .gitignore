@@ -8,3 +8,4 @@ venv/
 .rtrt
 data/athletes.json
 .worktrees/
+.flask_secret

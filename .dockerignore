@@ -1,0 +1,30 @@
+# flyctl launch added from .gitignore
+**/.DS_Store
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.venv
+**/venv
+**/.env
+**/.rtrt
+**/data/athletes.json
+**/.worktrees
+
+# flyctl launch added from .pytest_cache/.gitignore
+# Created by pytest automatically.
+.pytest_cache/**/*
+
+# flyctl launch added from .worktrees/athlete-management/.gitignore
+.worktrees/athlete-management/**/.DS_Store
+.worktrees/athlete-management/**/__pycache__
+.worktrees/athlete-management/**/*.pyc
+.worktrees/athlete-management/**/.pytest_cache
+.worktrees/athlete-management/**/.venv
+.worktrees/athlete-management/**/venv
+.worktrees/athlete-management/**/.env
+.worktrees/athlete-management/**/data/athletes.json
+
+# flyctl launch added from .worktrees/athlete-management/.pytest_cache/.gitignore
+# Created by pytest automatically.
+.worktrees/athlete-management/.pytest_cache/**/*
+fly.toml
