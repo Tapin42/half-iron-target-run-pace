@@ -1,40 +1,28 @@
-import os
-import requests
+from __future__ import annotations
+
+from racedata.providers.rtrt.client import RtrtClient, SessionCredentials
 
 
-RTRT_BASE_PARAMS = {
-    "timesort": "1",
-    "nohide": "1",
-    "checksum": "",
-    "max": "200",
-    "catloc": "1",
-    "cattotal": "1",
-    "units": "standard",
-    "source": "webtracker",
-}
+class RtrtClientAdapter(RtrtClient):
+    """Half-iron adapter: requires env credentials (no session UUID)."""
 
-
-class RtrtClient:
     def __init__(self) -> None:
-        self.app_id = os.getenv("RTRT_APPID", "")
-        self.token = os.getenv("RTRT_TOKEN", "")
+        creds = SessionCredentials.from_env()
+        if not creds:
+            self._missing = True
+            super().__init__(SessionCredentials(app_id="", token=""))
+            return
+        self._missing = False
+        super().__init__(creds)
 
     def ready(self) -> bool:
-        return bool(self.app_id and self.token)
+        return not getattr(self, "_missing", True) and bool(self.credentials.app_id and self.credentials.token)
 
     def post(self, url: str, payload: dict | None = None) -> dict:
         if not self.ready():
             raise RuntimeError("RTRT credentials are not configured")
+        return super().post(url, payload)
 
-        data = RTRT_BASE_PARAMS.copy()
-        data["appid"] = self.app_id
-        data["token"] = self.token
-        if payload:
-            data.update(payload)
 
-        response = requests.post(url, data=data, timeout=20)
-        response.raise_for_status()
-        result = response.json()
-        if not isinstance(result, dict):
-            raise RuntimeError("RTRT payload is not an object")
-        return result
+# Backward-compatible alias used across the app/tests.
+RtrtClient = RtrtClientAdapter

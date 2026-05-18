@@ -22,6 +22,13 @@ class StubClient:
     def __init__(self, responses: list[dict]) -> None:
         self.responses = responses
         self.calls: list[tuple[str, dict]] = []
+        self.credentials = type("Creds", (), {"app_id": "test-app", "token": "test-token"})()
+
+    def ready(self) -> bool:
+        return True
+
+    def register_session(self) -> None:
+        return None
 
     def post(self, url: str, payload: dict | None = None) -> dict:
         self.calls.append((url, payload or {}))
@@ -40,7 +47,7 @@ def test_rtrt_client_posts_with_auth_and_baseline_params(monkeypatch):
         called["timeout"] = timeout
         return FakeResponse({"ok": True})
 
-    monkeypatch.setattr("src.rtrt_client.requests.post", fake_post)
+    monkeypatch.setattr("racedata.providers.rtrt.client.requests.post", fake_post)
 
     client = RtrtClient()
     payload = client.post("https://example.test/endpoint", {"query": "amy"})

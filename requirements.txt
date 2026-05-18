@@ -3,3 +3,4 @@ requests
 python-dotenv
 pytest
 gunicorn
+racedata @ git+https://github.com/Tapin42/racedata.git@main
